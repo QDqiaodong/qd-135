@@ -1,0 +1,76 @@
+export interface ToolDTO {
+  id: number;
+  toolNumber: string;
+  toolName: string;
+  craftType: string;
+  material: string;
+  specification: string;
+  description: string;
+  inheritorName?: string;
+  projectName?: string;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface InheritorDTO {
+  id: number;
+  name: string;
+  title: string;
+  specialty: string;
+  contact: string;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface ProjectDTO {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  parentId?: number;
+  children?: ProjectDTO[];
+  createTime: string;
+  updateTime: string;
+}
+
+export interface AssociationDTO {
+  id: number;
+  toolId: number;
+  toolNumber: string;
+  toolName: string;
+  inheritorId: number;
+  inheritorName: string;
+  projectId: number;
+  projectName: string;
+  bindTime: string;
+  status: string;
+}
+
+export interface TraceabilityResult {
+  mainEntity: { id: number; name: string; type: string };
+  associatedTools: ToolDTO[];
+  associatedInheritors: InheritorDTO[];
+  associatedProjects: ProjectDTO[];
+  associations: AssociationDTO[];
+}
+
+export interface DashboardStats {
+  toolCount: number;
+  inheritorCount: number;
+  projectCount: number;
+  associationCount: number;
+}
+
+export interface ApiResponse<T> {
+  code: number;
+  message: string;
+  data: T;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}

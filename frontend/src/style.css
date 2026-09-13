@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Noto Serif SC', serif;
+  background-color: #f5f0e8;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f0e8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c27758;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a05d42;
+}
+
+.el-table {
+  --el-table-border-color: #d4a574;
+  --el-table-header-bg-color: #1a365d;
+  --el-table-header-text-color: #d4a574;
+}
+
+.el-card {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(26, 54, 93, 0.1);
+}
+
+.el-button--primary {
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+  border-color: #1a365d;
+}
+
+.el-button--primary:hover {
+  background: linear-gradient(135deg, #2c5282 0%, #3182ce 100%);
+  border-color: #2c5282;
+}
+
+.el-button--success {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.el-select .el-input__wrapper {
+  border-radius: 4px;
+}
+
+.el-dialog {
+  border-radius: 12px;
+}
+
+.el-dialog__header {
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.el-dialog__title {
+  color: #d4a574;
+}
+
+.el-form-item__label {
+  color: #1a365d;
+  font-weight: 500;
+}
