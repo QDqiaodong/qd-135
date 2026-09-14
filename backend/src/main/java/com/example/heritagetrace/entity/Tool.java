@@ -9,10 +9,11 @@ import lombok.Builder;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "tools", indexes = {
-    @Index(name = "idx_tool_number", columnList = "toolNumber"),
-    @Index(name = "idx_craft_type", columnList = "craftType")
-})
+@Table(name = "tools",
+    uniqueConstraints = @UniqueConstraint(name = "uk_tool_number", columnNames = "tool_number"),
+    indexes = {
+        @Index(name = "idx_craft_type", columnList = "craftType")
+    })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,7 +23,7 @@ public class Tool {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "tool_number", unique = true, nullable = false, length = 50)
+    @Column(name = "tool_number", nullable = false, length = 50)
     private String toolNumber;
     
     @Column(name = "tool_name", nullable = false, length = 100)

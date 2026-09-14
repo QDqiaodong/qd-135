@@ -4,12 +4,14 @@ import { useRouter, useRoute } from 'vue-router';
 import { ArrowLeft, Save } from 'lucide-vue-next';
 import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus';
 import { toolApi } from '@/api';
+import { getApiErrorMessage } from '@/lib/utils';
 import type { ToolCreateRequest, ToolUpdateRequest } from '@/api/types';
 
 const router = useRouter();
 const route = useRoute();
 const isEdit = ref(false);
 const toolId = ref<number | null>(null);
+const submitting = ref(false);
 
 const form = ref({
   toolNumber: '',
@@ -26,43 +28,53 @@ const formRules = {
 };
 
 const handleSubmit = async () => {
-  if (isEdit.value && toolId.value) {
-    const updateRequest: ToolUpdateRequest = {
-      toolName: form.value.toolName,
-      craftType: form.value.craftType,
-      material: form.value.material,
-      specification: form.value.specification,
-      description: form.value.description,
-    };
-    
-    try {
-      const response = await toolApi.update(toolId.value, updateRequest);
-      if (response.code === 200) {
-        ElMessage.success('更新成功');
-        router.push('/tools');
+  if (submitting.value) {
+    return;
+  }
+  submitting.value = true;
+  try {
+    if (isEdit.value && toolId.value) {
+      const updateRequest: ToolUpdateRequest = {
+        toolName: form.value.toolName,
+        craftType: form.value.craftType,
+        material: form.value.material,
+        specification: form.value.specification,
+        description: form.value.description,
+      };
+
+      try {
+        const response = await toolApi.update(toolId.value, updateRequest);
+        if (response.code === 200) {
+          ElMessage.success('更新成功');
+          router.push('/tools');
+        }
+      } catch (error) {
+        // 并发建档时后端会返回“工具编号已存在”等业务提示
+        ElMessage.error(getApiErrorMessage(error, '更新失败'));
       }
-    } catch (error) {
-      ElMessage.error('更新失败');
-    }
-  } else {
-    const createRequest: ToolCreateRequest = {
-      toolNumber: form.value.toolNumber,
-      toolName: form.value.toolName,
-      craftType: form.value.craftType,
-      material: form.value.material,
-      specification: form.value.specification,
-      description: form.value.description,
-    };
-    
-    try {
-      const response = await toolApi.create(createRequest);
-      if (response.code === 200) {
-        ElMessage.success('创建成功');
-        router.push('/tools');
+    } else {
+      const createRequest: ToolCreateRequest = {
+        toolNumber: form.value.toolNumber,
+        toolName: form.value.toolName,
+        craftType: form.value.craftType,
+        material: form.value.material,
+        specification: form.value.specification,
+        description: form.value.description,
+      };
+
+      try {
+        const response = await toolApi.create(createRequest);
+        if (response.code === 200) {
+          ElMessage.success('创建成功');
+          router.push('/tools');
+        }
+      } catch (error) {
+        // 并发建档时后端会返回“工具编号已存在”等业务提示
+        ElMessage.error(getApiErrorMessage(error, '创建失败'));
       }
-    } catch (error) {
-      ElMessage.error('创建失败');
     }
+  } finally {
+    submitting.value = false;
   }
 };
 
@@ -110,7 +122,7 @@ onMounted(async () => {
           <p class="text-gray-500 text-sm mt-1">传统手工工具基础信息录入</p>
         </div>
       </div>
-      <ElButton type="primary" @click="handleSubmit" class="flex items-center gap-2">
+      <ElButton type="primary" :loading="submitting" @click="handleSubmit" class="flex items-center gap-2">
         <Save class="w-4 h-4" />
         {{ isEdit ? '保存修改' : '创建工具' }}
       </ElButton>
