@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { ApiResponse, PageResponse, ToolDTO, InheritorDTO, ProjectDTO, AssociationDTO, TraceabilityResult, DashboardStats } from '@/types';
-import type { ToolCreateRequest, ToolUpdateRequest, InheritorCreateRequest, InheritorUpdateRequest, ProjectCreateRequest, ProjectUpdateRequest, AssociationBindRequest, AssociationUpdateRequest } from '@/api/types';
+import type { ToolCreateRequest, ToolUpdateRequest, InheritorCreateRequest, InheritorUpdateRequest, ProjectCreateRequest, ProjectUpdateRequest, ProjectBindParentRequest, AssociationBindRequest, AssociationUpdateRequest } from '@/api/types';
 
 const request = axios.create({
   baseURL: '/api',
@@ -74,6 +74,9 @@ export const projectApi = {
   },
   update(id: number, data: ProjectUpdateRequest): Promise<ApiResponse<ProjectDTO>> {
     return request.put(`/projects/${id}`, data);
+  },
+  bindParent(id: number, data: ProjectBindParentRequest): Promise<ApiResponse<ProjectDTO>> {
+    return request.put(`/projects/${id}/parent`, data);
   },
   delete(id: number): Promise<ApiResponse<void>> {
     return request.delete(`/projects/${id}`);

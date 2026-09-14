@@ -1,5 +1,6 @@
 package com.example.heritagetrace.controller;
 
+import com.example.heritagetrace.dto.request.ProjectBindParentRequest;
 import com.example.heritagetrace.dto.request.ProjectCreateRequest;
 import com.example.heritagetrace.dto.request.ProjectUpdateRequest;
 import com.example.heritagetrace.dto.response.ApiResponse;
@@ -48,6 +49,14 @@ public class ProjectController {
         return ApiResponse.success("更新成功", project);
     }
     
+    @PutMapping("/{id}/parent")
+    public ApiResponse<ProjectDTO> bindParent(
+            @PathVariable Long id,
+            @RequestBody ProjectBindParentRequest request) {
+        ProjectDTO project = projectService.bindParent(id, request.getParentId());
+        return ApiResponse.success("挂载成功", project);
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteProject(@PathVariable Long id) {
         projectService.deleteProject(id);

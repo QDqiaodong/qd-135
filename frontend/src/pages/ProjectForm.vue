@@ -6,6 +6,7 @@ import { ElForm, ElFormItem, ElInput, ElButton, ElSelect, ElMessage } from 'elem
 import { projectApi } from '@/api';
 import type { ProjectCreateRequest, ProjectUpdateRequest } from '@/api/types';
 import type { ProjectDTO } from '@/types';
+import { getApiErrorMessage } from '@/lib/utils';
 
 const router = useRouter();
 const route = useRoute();
@@ -41,7 +42,7 @@ const handleSubmit = async () => {
         router.push('/projects');
       }
     } catch (error) {
-      ElMessage.error('更新失败');
+      ElMessage.error(getApiErrorMessage(error, '更新失败'));
     }
   } else {
     const createRequest: ProjectCreateRequest = {
@@ -50,7 +51,7 @@ const handleSubmit = async () => {
       description: form.value.description,
       parentId: form.value.parentId,
     };
-    
+
     try {
       const response = await projectApi.create(createRequest);
       if (response.code === 200) {
@@ -58,7 +59,7 @@ const handleSubmit = async () => {
         router.push('/projects');
       }
     } catch (error) {
-      ElMessage.error('创建失败');
+      ElMessage.error(getApiErrorMessage(error, '创建失败'));
     }
   }
 };
@@ -67,13 +68,32 @@ const handleBack = () => {
   router.push('/projects');
 };
 
+/** 在平铺列表中收集 rootId 的全部后代 id（依据 parentId 关系逐级展开） */
+const collectDescendantIds = (flatProjects: ProjectDTO[], rootId: number): Set<number> => {
+  const ids = new Set<number>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const p of flatProjects) {
+      if (p.parentId != null && ids.has(p.parentId) && !ids.has(p.id)) {
+        ids.add(p.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
+};
+
 const loadParentProjects = async () => {
   try {
     const response = await projectApi.list();
     if (response.code === 200) {
-      parentProjects.value = response.data.filter(p => {
+      const flatProjects = response.data;
+      parentProjects.value = flatProjects.filter(p => {
         if (isEdit.value && projectId.value) {
-          return p.id !== projectId.value;
+          // 排除自身及其所有后代，防止自引用或把项目挂到后代下形成环路
+          const excluded = collectDescendantIds(flatProjects, projectId.value);
+          return !excluded.has(p.id);
         }
         return true;
       });
@@ -84,13 +104,11 @@ const loadParentProjects = async () => {
 };
 
 onMounted(async () => {
-  await loadParentProjects();
-  
   const id = route.params.id;
   if (id) {
     isEdit.value = true;
     projectId.value = Number(id);
-    
+
     try {
       const response = await projectApi.get(projectId.value);
       if (response.code === 200) {
@@ -106,6 +124,9 @@ onMounted(async () => {
       console.error('Failed to load project:', error);
     }
   }
+
+  // 编辑态下需先拿到当前项目 id，再过滤父级候选
+  await loadParentProjects();
 });
 </script>
 
@@ -140,14 +161,22 @@ onMounted(async () => {
         </ElFormItem>
         
         <ElFormItem label="父级项目">
-          <ElSelect v-model="form.parentId" placeholder="请选择父级项目（可选）">
-            <ElSelectOption 
-              v-for="project in parentProjects" 
-              :key="project.id" 
-              :label="project.name" 
-              :value="project.id" 
+          <ElSelect
+            v-model="form.parentId"
+            placeholder="请选择父级项目（可选）"
+            clearable
+            class="w-full"
+          >
+            <ElSelectOption
+              v-for="project in parentProjects"
+              :key="project.id"
+              :label="project.name"
+              :value="project.id"
             />
           </ElSelect>
+          <div v-if="isEdit" class="text-xs text-gray-400 mt-1">
+            留空表示顶级项目；不能选择自身或其下级项目作为父级
+          </div>
         </ElFormItem>
         
         <ElFormItem label="描述">

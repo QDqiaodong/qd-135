@@ -33,14 +33,18 @@ export interface ProjectCreateRequest {
   name: string;
   category?: string;
   description?: string;
-  parentId?: number;
+  parentId?: number | null;
 }
 
 export interface ProjectUpdateRequest {
   name?: string;
   category?: string;
   description?: string;
-  parentId?: number;
+  parentId?: number | null;
+}
+
+export interface ProjectBindParentRequest {
+  parentId?: number | null;
 }
 
 export interface AssociationBindRequest {
