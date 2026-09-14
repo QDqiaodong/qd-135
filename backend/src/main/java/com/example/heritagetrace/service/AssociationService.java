@@ -227,14 +227,12 @@ public class AssociationService {
                 })
                 .collect(Collectors.toList());
         
-        List<InheritorDTO> inheritors = inheritorRepository.findByIdIn(inheritorIds).stream()
-                .map(InheritorDTO::fromEntity)
-                .collect(Collectors.toList());
-        
+        List<InheritorDTO> inheritors = inheritorRepository.findDtoByIdIn(inheritorIds);
+
         List<AssociationDTO> associationDTOs = associations.stream()
                 .map(this::buildAssociationDTO)
                 .collect(Collectors.toList());
-        
+
         TraceabilityResult result = new TraceabilityResult();
         result.setMainEntity(new TraceabilityResult.MainEntity(projectId, project.getName(), "project"));
         result.setAssociatedTools(tools);
@@ -303,9 +301,7 @@ public class AssociationService {
         List<Long> projectIds = associationRepository.findProjectIdsByToolId(toolId);
         List<Association> associations = associationRepository.findActiveByToolId(toolId);
         
-        List<InheritorDTO> inheritors = inheritorRepository.findByIdIn(inheritorIds).stream()
-                .map(InheritorDTO::fromEntity)
-                .collect(Collectors.toList());
+        List<InheritorDTO> inheritors = inheritorRepository.findDtoByIdIn(inheritorIds);
         
         List<ProjectDTO> projects = projectRepository.findByIdIn(projectIds).stream()
                 .map(ProjectDTO::fromEntity)

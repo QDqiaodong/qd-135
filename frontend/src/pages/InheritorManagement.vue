@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus, Search, Edit, Trash2, Eye } from 'lucide-vue-next';
+import { Plus, Search, Edit, Trash2, Eye, FileText, Download } from 'lucide-vue-next';
 import { ElTable, ElTableColumn, ElPagination, ElButton, ElInput, ElDialog, ElMessage } from 'element-plus';
 import { inheritorApi } from '@/api';
 import type { InheritorDTO, PageResponse } from '@/types';
+import { formatFileSize } from '@/lib/utils';
 
 const router = useRouter();
 const inheritors = ref<InheritorDTO[]>([]);
@@ -166,6 +167,28 @@ onMounted(() => {
           <div>
             <label class="block text-sm font-medium text-gray-600">创建时间</label>
             <p>{{ currentInheritor.createTime }}</p>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-600">资格证明</label>
+            <div v-if="currentInheritor.certificateName" class="flex items-center justify-between gap-3 mt-1 rounded-lg border border-heritage-secondary/40 bg-heritage-secondary/5 px-3 py-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <FileText class="w-4 h-4 text-heritage-primary shrink-0" />
+                <span class="text-sm text-heritage-primary truncate">{{ currentInheritor.certificateName }}</span>
+                <span class="text-xs text-gray-400 shrink-0">
+                  {{ formatFileSize(currentInheritor.certificateSize) }}
+                  <template v-if="currentInheritor.certificateUploadTime">
+                    · {{ currentInheritor.certificateUploadTime }}
+                  </template>
+                </span>
+              </div>
+              <a :href="inheritorApi.certificateUrl(currentInheritor.id)" target="_blank" rel="noopener" class="shrink-0">
+                <ElButton size="small" text type="primary">
+                  <Download class="w-4 h-4 mr-1" />
+                  查看/下载
+                </ElButton>
+              </a>
+            </div>
+            <p v-else class="text-gray-400">未上传资格证明</p>
           </div>
         </div>
       </div>

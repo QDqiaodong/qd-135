@@ -18,6 +18,10 @@ export interface InheritorDTO {
   title: string;
   specialty: string;
   contact: string;
+  certificateName?: string | null;
+  certificateContentType?: string | null;
+  certificateSize?: number | null;
+  certificateUploadTime?: string | null;
   createTime: string;
   updateTime: string;
 }

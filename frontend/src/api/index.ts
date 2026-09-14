@@ -49,6 +49,17 @@ export const inheritorApi = {
   delete(id: number): Promise<ApiResponse<void>> {
     return request.delete(`/inheritors/${id}`);
   },
+  uploadCertificate(id: number, file: File): Promise<ApiResponse<InheritorDTO>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request.post(`/inheritors/${id}/certificate`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+  },
+  certificateUrl(id: number): string {
+    return `/api/inheritors/${id}/certificate`;
+  },
 };
 
 export const projectApi = {

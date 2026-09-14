@@ -33,7 +33,23 @@ public class Inheritor {
     
     @Column(name = "contact", length = 100)
     private String contact;
-    
+
+    @Column(name = "certificate_name", length = 255)
+    private String certificateName;
+
+    @Column(name = "certificate_content_type", length = 100)
+    private String certificateContentType;
+
+    @Column(name = "certificate_size")
+    private Long certificateSize;
+
+    @Lob
+    @Column(name = "certificate_data", columnDefinition = "LONGBLOB")
+    private byte[] certificateData;
+
+    @Column(name = "certificate_upload_time")
+    private LocalDateTime certificateUploadTime;
+
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
     
