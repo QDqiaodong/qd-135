@@ -17,6 +17,12 @@ public class AssociationDTO {
     private String projectName;
     private String bindTime;
     private String status;
+    /** 工具的适用工艺，用于名单上说明对不上 */
+    private String toolCraftType;
+    /** 项目的分类，用于名单上说明对不上 */
+    private String projectCategory;
+    /** 工艺与项目分类是否一路（实时比对得出） */
+    private boolean craftMatched;
     
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     

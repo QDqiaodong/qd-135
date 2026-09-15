@@ -50,27 +50,32 @@ public class AssociationService {
     
     @Transactional
     public AssociationDTO bind(AssociationBindRequest request) {
-        if (!toolRepository.existsById(request.getToolId())) {
-            throw new IllegalArgumentException("工具不存在");
-        }
+        Tool tool = toolRepository.findById(request.getToolId())
+                .orElseThrow(() -> new IllegalArgumentException("工具不存在"));
         if (!inheritorRepository.existsById(request.getInheritorId())) {
             throw new IllegalArgumentException("传承人不存在");
         }
         Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
         ensureProjectNotCompleted(project);
-        
+        ensureCraftMatched(tool, project);
+
         Association existing = associationRepository
                 .findByToolIdAndInheritorIdAndProjectId(
                         request.getToolId(), request.getInheritorId(), request.getProjectId())
                 .orElse(null);
 
-        if (existing != null && "ACTIVE".equals(existing.getStatus())) {
+        // 工艺对不上的旧记录必须先解开，不允许通过重新挂上“复活”成正常在用
+        if (existing != null && Association.STATUS_ACTIVE.equals(existing.getStatus())) {
             throw new IllegalArgumentException("该三方关联已存在");
+        }
+        if (existing != null && Association.STATUS_MISMATCH.equals(existing.getStatus())) {
+            throw new IllegalArgumentException("该关联工艺对不上，仍挂在名单上，请先解开后再按正确工艺重新登记");
         }
 
         if (existing != null) {
-            existing.setStatus("ACTIVE");
+            // 已解开（DELETED）的同一组三方记录，工艺匹配时允许重新挂上
+            existing.setStatus(Association.STATUS_ACTIVE);
             existing.setBindTime(java.time.LocalDateTime.now());
             Association reactivated = associationRepository.save(existing);
 
@@ -93,23 +98,31 @@ public class AssociationService {
                 .toolId(request.getToolId())
                 .inheritorId(request.getInheritorId())
                 .projectId(request.getProjectId())
-                .status("ACTIVE")
+                .status(Association.STATUS_ACTIVE)
                 .build();
 
-        Association saved = associationRepository.save(association);
+        Association saved;
+        try {
+            saved = associationRepository.save(association);
 
-        AssociationHistory history = AssociationHistory.builder()
-                .associationId(saved.getId())
-                .toolId(request.getToolId())
-                .actionType("BIND")
-                .newInheritorId(request.getInheritorId())
-                .newProjectId(request.getProjectId())
-                .remark(request.getRemark())
-                .build();
-        associationHistoryRepository.save(history);
-        
+            AssociationHistory history = AssociationHistory.builder()
+                    .associationId(saved.getId())
+                    .toolId(request.getToolId())
+                    .actionType("BIND")
+                    .newInheritorId(request.getInheritorId())
+                    .newProjectId(request.getProjectId())
+                    .remark(request.getRemark())
+                    .build();
+            associationHistoryRepository.save(history);
+            // 立刻触发刷库，让唯一约束冲突在本事务内抛出，被统一转成 400
+            associationRepository.flush();
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // 两人同一时刻往同一组三方上挂：两边都不能留下，事务整体回滚
+            throw new IllegalArgumentException("该三方关联正由其他用户同时挂上，请刷新名单后确认，本次未保留记录");
+        }
+
         clearTraceCache(request.getToolId(), request.getInheritorId(), request.getProjectId());
-        
+
         return buildAssociationDTO(saved);
     }
     
@@ -117,13 +130,13 @@ public class AssociationService {
     public AssociationDTO update(Long id, AssociationUpdateRequest request) {
         Association association = associationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("关联记录不存在"));
-        
+
         Long oldInheritorId = association.getInheritorId();
         Long oldProjectId = association.getProjectId();
-        
+
         boolean hasChange = false;
         String actionType = "UPDATE";
-        
+
         if (request.getInheritorId() != null && !request.getInheritorId().equals(oldInheritorId)) {
             if (!inheritorRepository.existsById(request.getInheritorId())) {
                 throw new IllegalArgumentException("传承人不存在");
@@ -132,11 +145,14 @@ public class AssociationService {
             hasChange = true;
             actionType = "TRANSFER_INHERITOR";
         }
-        
+
         if (request.getProjectId() != null && !request.getProjectId().equals(oldProjectId)) {
             Project targetProject = projectRepository.findById(request.getProjectId())
                     .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
             ensureProjectNotCompleted(targetProject);
+            Tool boundTool = toolRepository.findById(association.getToolId())
+                    .orElseThrow(() -> new IllegalArgumentException("关联工具不存在"));
+            ensureCraftMatched(boundTool, targetProject);
             association.setProjectId(request.getProjectId());
             hasChange = true;
             if ("TRANSFER_INHERITOR".equals(actionType)) {
@@ -175,8 +191,8 @@ public class AssociationService {
         Association association = associationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("关联记录不存在"));
         
-        if (!"ACTIVE".equals(association.getStatus())) {
-            throw new IllegalArgumentException("关联记录已失效");
+        if (!Association.STATUS_ACTIVE.equals(association.getStatus())) {
+            throw new IllegalArgumentException("关联记录已失效或工艺对不上，不能移交");
         }
         
         Long oldInheritorId = association.getInheritorId();
@@ -217,11 +233,11 @@ public class AssociationService {
         Association association = associationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("关联记录不存在"));
 
-        if ("DELETED".equals(association.getStatus())) {
+        if (Association.STATUS_DELETED.equals(association.getStatus())) {
             throw new IllegalArgumentException("该关联已解绑，无需重复操作");
         }
 
-        association.setStatus("DELETED");
+        association.setStatus(Association.STATUS_DELETED);
         associationRepository.save(association);
 
         AssociationHistory history = AssociationHistory.builder()
@@ -361,16 +377,80 @@ public class AssociationService {
         }
     }
 
+    /** 挂上/换项目时，工具工艺必须与项目分类一路，否则给出具体对不上的提示 */
+    private void ensureCraftMatched(Tool tool, Project project) {
+        if (!CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory())) {
+            throw new IllegalArgumentException(CraftMatcher.mismatchMessage(tool.getCraftType(), project.getCategory()));
+        }
+    }
+
+    /**
+     * 工具档案变更后对账：其名下仍挂着（非 DELETED）的关联，
+     * 按最新工艺重新判定 ACTIVE / MISMATCH。
+     */
+    @Transactional
+    public void reconcileByTool(Long toolId) {
+        Tool tool = toolRepository.findById(toolId).orElse(null);
+        for (Association association : associationRepository.findByToolId(toolId)) {
+            if (Association.STATUS_DELETED.equals(association.getStatus())) {
+                continue;
+            }
+            Project project = projectRepository.findById(association.getProjectId()).orElse(null);
+            boolean matched = tool != null && project != null
+                    && CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory());
+            applyReconciledStatus(association, matched);
+        }
+    }
+
+    /**
+     * 项目档案变更后对账：挂在该项目下（非 DELETED）的关联，
+     * 按最新分类重新判定 ACTIVE / MISMATCH。
+     */
+    @Transactional
+    public void reconcileByProject(Long projectId) {
+        Project project = projectRepository.findById(projectId).orElse(null);
+        for (Association association : associationRepository.findByProjectId(projectId)) {
+            if (Association.STATUS_DELETED.equals(association.getStatus())) {
+                continue;
+            }
+            Tool tool = toolRepository.findById(association.getToolId()).orElse(null);
+            boolean matched = tool != null && project != null
+                    && CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory());
+            applyReconciledStatus(association, matched);
+        }
+    }
+
+    private void applyReconciledStatus(Association association, boolean matched) {
+        String target = matched ? Association.STATUS_ACTIVE : Association.STATUS_MISMATCH;
+        if (target.equals(association.getStatus())) {
+            return;
+        }
+        association.setStatus(target);
+        associationRepository.save(association);
+        clearTraceCache(association.getToolId(), association.getInheritorId(), association.getProjectId());
+    }
+
     private AssociationDTO buildAssociationDTO(Association association) {
-        String toolNumber = toolRepository.findById(association.getToolId())
-            .map(Tool::getToolNumber).orElse("");String toolName = toolRepository.findById(association.getToolId())
-            .map(Tool::getToolName).orElse("");
-        String inheritorName = inheritorRepository.findById(association.getInheritorId())
-            .map(Inheritor::getName).orElse("");
-        String projectName = projectRepository.findById(association.getProjectId())
-            .map(Project::getName).orElse("");
-        
-        return AssociationDTO.fromEntity(association, toolNumber, toolName, inheritorName, projectName);
+        Tool tool = toolRepository.findById(association.getToolId()).orElse(null);
+        Inheritor inheritor = inheritorRepository.findById(association.getInheritorId()).orElse(null);
+        Project project = projectRepository.findById(association.getProjectId()).orElse(null);
+
+        String toolNumber = tool != null ? tool.getToolNumber() : "";
+        String toolName = tool != null ? tool.getToolName() : "";
+        String inheritorName = inheritor != null ? inheritor.getName() : "";
+        String projectName = project != null ? project.getName() : "";
+
+        AssociationDTO dto = AssociationDTO.fromEntity(association, toolNumber, toolName, inheritorName, projectName);
+        if (tool != null) {
+            dto.setToolCraftType(tool.getCraftType());
+        }
+        if (project != null) {
+            dto.setProjectCategory(project.getCategory());
+        }
+        boolean matched = tool != null && project != null
+                && CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory());
+        dto.setCraftMatched(matched);
+        return dto;
     }
     
     public List<AssociationHistoryDTO> getHistory(Long associationId) {
@@ -426,9 +506,15 @@ public class AssociationService {
 
     public List<AssociationDTO> list(String status) {
         String normalized = (status == null || status.isBlank()) ? null : status.trim();
-        List<Association> associations = normalized == null
-                ? associationRepository.findAll()
-                : associationRepository.findByStatus(normalized);
+        List<Association> associations;
+        if (normalized == null) {
+            associations = associationRepository.findAll();
+        } else if ("OPEN".equals(normalized)) {
+            // 名单视角：仍挂着没解开的，正常在用与工艺对不上的都要列出
+            associations = associationRepository.findOpen();
+        } else {
+            associations = associationRepository.findByStatus(normalized);
+        }
         return associations.stream()
                 .sorted((a, b) -> {
                     java.time.LocalDateTime ta = a.getBindTime();

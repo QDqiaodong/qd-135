@@ -30,6 +30,9 @@ public class ProjectService {
     private AssociationRepository associationRepository;
 
     @Autowired
+    private AssociationService associationService;
+
+    @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
     private static final String PROJECT_CACHE_KEY_PREFIX = "projects:";
@@ -137,6 +140,12 @@ public class ProjectService {
 
         Project updated = projectRepository.save(project);
         clearCache(id);
+
+        // 分类可能被改对或改错，重新对账名下关联的 ACTIVE/MISMATCH 标记
+        if (request.getCategory() != null) {
+            associationService.reconcileByProject(id);
+        }
+
         return ProjectDTO.fromEntity(updated);
     }
 
@@ -190,7 +199,7 @@ public class ProjectService {
             ensureReadyForReview(id);
         }
         if (Project.STAGE_COMPLETED.equals(target)) {
-            long activeCount = associationRepository.countByProjectIdAndStatus(id, "ACTIVE");
+            long activeCount = associationRepository.countByProjectIdAndStatus(id, com.example.heritagetrace.entity.Association.STATUS_ACTIVE);
             if (activeCount > 0) {
                 throw new IllegalArgumentException("项目名下还有 " + activeCount + " 条有效关联，全部解开后才能结项");
             }

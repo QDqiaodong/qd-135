@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { Link2, RefreshCw, Eye, ScrollText, Filter, ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-vue-next';
 import {
   ElButton, ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElTable, ElTableColumn,
-  ElDialog, ElMessage, ElMessageBox, ElTag, ElTooltip,
+  ElDialog, ElMessage, ElMessageBox, ElTag, ElTooltip, ElAlert,
 } from 'element-plus';
 import { toolApi, inheritorApi, projectApi, associationApi } from '@/api';
 import type {
@@ -22,6 +22,8 @@ const selectedToolId = ref<number | undefined>();
 const selectedInheritorId = ref<number | undefined>();
 const selectedProjectId = ref<number | undefined>();
 const remark = ref('');
+/** 后端拦下后给出的失败提示（对不上、已存在、已结项等），直接展示在绑定区 */
+const bindErrorHint = ref('');
 
 // 流水筛选
 const filterToolId = ref<number | undefined>();
@@ -82,6 +84,43 @@ const filteredLedger = computed(() => {
 // 已结项的项目档案锁定，不能再挂新的关联
 const bindableProjects = computed(() => projects.value.filter((p) => p.stage !== 'COMPLETED'));
 
+const normalizeCraft = (value?: string | null) => (value || '').trim();
+
+const selectedTool = computed(() => tools.value.find((t) => t.id === selectedToolId.value));
+const selectedProject = computed(() => projects.value.find((p) => p.id === selectedProjectId.value));
+
+/** 当前所选工具与项目工艺是否一路：任一未填工艺不参与比较 */
+const selectionCraftMatched = computed(() => {
+  const craft = normalizeCraft(selectedTool.value?.craftType);
+  const category = normalizeCraft(selectedProject.value?.category);
+  if (!craft || !category) return true;
+  return craft.toLowerCase() === category.toLowerCase();
+});
+
+const selectionMismatchText = computed(() => {
+  const craft = normalizeCraft(selectedTool.value?.craftType);
+  const category = normalizeCraft(selectedProject.value?.category);
+  if (!craft || !category || craft.toLowerCase() === category.toLowerCase()) return '';
+  return `工艺对不上：工具工艺为「${craft}」，项目分类为「${category}」，不是一路，不能挂上`;
+});
+
+// 选择一变，上一轮的拦截提示立即清掉
+watch([selectedToolId, selectedProjectId], () => {
+  bindErrorHint.value = '';
+});
+
+const isMismatchRow = (row: any) =>
+  row.status === 'MISMATCH' || row.craftMatched === false;
+
+const rowMismatchText = (row: any) => {
+  const craft = normalizeCraft(row.toolCraftType);
+  const category = normalizeCraft(row.projectCategory);
+  if (craft && category && craft.toLowerCase() !== category.toLowerCase()) {
+    return `工艺对不上：工具「${craft}」 vs 项目「${category}」`;
+  }
+  return '工艺对不上，请核对工具工艺与项目分类';
+};
+
 const loadTools = async () => {
   try {
     const response = await toolApi.list(0, 100);
@@ -117,7 +156,8 @@ const loadProjects = async () => {
 
 const loadAssociations = async () => {
   try {
-    const response = await associationApi.list('ACTIVE');
+    // OPEN：仍挂着没解开的都要，正常在用和工艺对不上的都列在名单上
+    const response = await associationApi.list('OPEN');
     if (response.code === 200) {
       associations.value = response.data;
     }
@@ -150,11 +190,20 @@ const resetBindForm = () => {
   selectedInheritorId.value = undefined;
   selectedProjectId.value = undefined;
   remark.value = '';
+  bindErrorHint.value = '';
 };
 
 const handleBind = async () => {
   if (!selectedToolId.value || !selectedInheritorId.value || !selectedProjectId.value) {
     ElMessage.warning('请选择工具、传承人和非遗项目');
+    return;
+  }
+
+  // 绑定页直接说出对不上：前端先拦一道，后端还会再兜底，两人同挂以后端为准
+  if (!selectionCraftMatched.value) {
+    const hint = selectionMismatchText.value;
+    bindErrorHint.value = hint;
+    ElMessage.error(hint);
     return;
   }
 
@@ -172,7 +221,9 @@ const handleBind = async () => {
       await Promise.all([loadAssociations(), loadLedger()]);
     }
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.message || '绑定失败，该关联可能已存在');
+    const message: string = error?.response?.data?.message || '绑定失败，该关联可能已存在';
+    bindErrorHint.value = message;
+    ElMessage.error(message);
   }
 };
 
@@ -252,7 +303,7 @@ onMounted(() => {
               <ElOption
                 v-for="tool in tools"
                 :key="tool.id"
-                :label="`${tool.toolNumber} - ${tool.toolName}`"
+                :label="`${tool.toolNumber} - ${tool.toolName}（${tool.craftType || '工艺未填'}）`"
                 :value="tool.id"
               />
             </ElSelect>
@@ -274,7 +325,7 @@ onMounted(() => {
               <ElOption
                 v-for="project in bindableProjects"
                 :key="project.id"
-                :label="`${project.name} - ${project.category || ''}`"
+                :label="`${project.name} - ${project.category || '分类未填'}`"
                 :value="project.id"
               />
             </ElSelect>
@@ -285,35 +336,85 @@ onMounted(() => {
           </ElFormItem>
 
           <ElFormItem>
-            <ElButton type="primary" @click="handleBind" class="flex items-center gap-2">
+            <ElButton
+              type="primary"
+              :disabled="!selectionCraftMatched"
+              :title="!selectionCraftMatched ? selectionMismatchText : ''"
+              @click="handleBind"
+              class="flex items-center gap-2"
+            >
               <Link2 class="w-4 h-4" />
               绑定关联
             </ElButton>
           </ElFormItem>
+
+          <!-- 工艺对不上必须在绑定页当场说清楚，不允许提交 -->
+          <div v-if="selectionMismatchText" class="w-full">
+            <ElAlert
+              :title="selectionMismatchText"
+              type="error"
+              show-icon
+              :closable="false"
+              class="mt-1"
+            />
+          </div>
+          <div v-else-if="bindErrorHint" class="w-full">
+            <ElAlert
+              :title="bindErrorHint"
+              type="error"
+              show-icon
+              :closable="false"
+              class="mt-1"
+            />
+          </div>
         </ElForm>
       </div>
     </div>
 
-    <!-- 当前有效关联 -->
+    <!-- 当前关联名单：仍挂着没解开的都在；挂错工艺的会被标出，不算正常在用 -->
     <div class="bg-white rounded-xl shadow-sm border border-heritage-secondary/20 overflow-hidden">
       <div class="p-6 border-b border-heritage-secondary/20">
         <div class="flex items-center gap-2">
           <Link2 class="w-5 h-5 text-heritage-accent" />
-          <h3 class="font-serif text-lg font-semibold text-heritage-primary">当前有效关联</h3>
-          <span class="ml-auto text-sm text-gray-400">仅展示仍挂着的一组人；谁先挂上、谁后来解开请看下方流水</span>
+          <h3 class="font-serif text-lg font-semibold text-heritage-primary">当前关联名单</h3>
+          <span class="ml-auto text-sm text-gray-400">仍挂着的一组人都在这里；工艺对不上的会标红，解开前不能当成正常在用</span>
         </div>
       </div>
 
       <div class="overflow-x-auto">
-        <ElTable :data="associations" border class="w-full">
+        <ElTable
+          :data="associations"
+          border
+          class="w-full"
+          :row-class-name="({ row }) => (isMismatchRow(row) ? 'row-craft-mismatch' : '')"
+        >
           <ElTableColumn prop="toolNumber" label="工具编号" width="120" />
-          <ElTableColumn prop="toolName" label="工具名称" min-width="140" />
+          <ElTableColumn label="工具名称 / 工艺" min-width="180">
+            <template #default="{ row }">
+              <div>{{ row.toolName }}</div>
+              <div class="text-xs text-gray-400">工艺：{{ row.toolCraftType || '-' }}</div>
+            </template>
+          </ElTableColumn>
           <ElTableColumn prop="inheritorName" label="传承人" width="120" />
-          <ElTableColumn prop="projectName" label="非遗项目" min-width="140" />
+          <ElTableColumn label="非遗项目 / 分类" min-width="180">
+            <template #default="{ row }">
+              <div>{{ row.projectName }}</div>
+              <div class="text-xs text-gray-400">分类：{{ row.projectCategory || '-' }}</div>
+            </template>
+          </ElTableColumn>
           <ElTableColumn prop="bindTime" label="本次挂上时间" width="170" />
-          <ElTableColumn label="状态" width="90">
-            <template #default>
-              <ElTag type="success" size="small">有效</ElTag>
+          <ElTableColumn label="状态" width="170">
+            <template #default="{ row }">
+              <ElTag v-if="isMismatchRow(row)" type="danger" size="small">工艺对不上</ElTag>
+              <ElTag v-else type="success" size="small">有效</ElTag>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="对不上说明" min-width="220">
+            <template #default="{ row }">
+              <span v-if="isMismatchRow(row)" class="text-red-600 text-sm">
+                {{ rowMismatchText(row) }}
+              </span>
+              <span v-else class="text-gray-300 text-sm">-</span>
             </template>
           </ElTableColumn>
           <ElTableColumn label="操作" width="150" fixed="right">
@@ -331,7 +432,7 @@ onMounted(() => {
             </template>
           </ElTableColumn>
           <template #empty>
-            <div class="py-10 text-center text-gray-400">当前没有有效关联</div>
+            <div class="py-10 text-center text-gray-400">当前没有挂着的关联</div>
           </template>
         </ElTable>
       </div>
@@ -468,10 +569,25 @@ onMounted(() => {
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-600">状态</label>
-            <ElTag type="success" size="small">有效</ElTag>
+            <ElTag v-if="isMismatchRow(currentAssociation)" type="danger" size="small">工艺对不上</ElTag>
+            <ElTag v-else type="success" size="small">有效</ElTag>
+          </div>
+          <div v-if="isMismatchRow(currentAssociation)" class="col-span-2">
+            <label class="block text-sm font-medium text-red-600 mb-1">对不上说明</label>
+            <p class="text-red-600 text-sm">{{ rowMismatchText(currentAssociation) }}；解开前不能当成正常在用</p>
           </div>
         </div>
       </div>
     </ElDialog>
   </div>
 </template>
+
+<style scoped>
+/* 挂错工艺的整行标红，提示解开前不算正常在用 */
+:deep(.el-table .row-craft-mismatch td) {
+  background-color: #fef0f0 !important;
+}
+:deep(.el-table .row-craft-mismatch:hover td) {
+  background-color: #fde2e2 !important;
+}
+</style>

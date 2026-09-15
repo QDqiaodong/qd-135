@@ -15,6 +15,10 @@ public interface AssociationRepository extends JpaRepository<Association, Long> 
 
     List<Association> findByStatus(String status);
 
+    /** 仍挂着没解开的：正常在用与工艺对不上的都算，已解绑的不进名单 */
+    @Query("SELECT a FROM Association a WHERE a.status <> 'DELETED'")
+    List<Association> findOpen();
+
     List<Association> findByInheritorId(Long inheritorId);
     
     List<Association> findByProjectId(Long projectId);

@@ -27,7 +27,7 @@ public class DashboardService {
         stats.setToolCount(toolRepository.count());
         stats.setInheritorCount(inheritorRepository.count());
         stats.setProjectCount(projectRepository.count());
-        stats.setAssociationCount(associationRepository.countByStatus("ACTIVE"));
+        stats.setAssociationCount(associationRepository.countByStatus(com.example.heritagetrace.entity.Association.STATUS_ACTIVE));
         return stats;
     }
 }

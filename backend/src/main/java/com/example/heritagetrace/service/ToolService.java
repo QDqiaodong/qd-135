@@ -50,6 +50,10 @@ public class ToolService {
     @Lazy
     private ToolService self;
 
+    @Autowired
+    @Lazy
+    private AssociationService associationService;
+
     private static final String TOOL_CACHE_KEY_PREFIX = "tools:";
     private static final String TOOL_LIST_CACHE_KEY_PREFIX = "tools:list:";
     /** 工具编号建档互斥锁前缀，同一编号同一时刻只允许一个建档请求进入 */
@@ -214,7 +218,12 @@ public class ToolService {
         
         Tool updated = toolRepository.save(tool);
         clearCache(id);
-        
+
+        // 工艺可能被改对或改错，重新对账名下关联的 ACTIVE/MISMATCH 标记
+        if (request.getCraftType() != null) {
+            associationService.reconcileByTool(id);
+        }
+
         ToolDTO dto = ToolDTO.fromEntity(updated);
         fillAssociationInfo(dto);
         return dto;
@@ -227,7 +236,7 @@ public class ToolService {
         }
         
         associationRepository.findByToolId(id).forEach(association -> {
-            association.setStatus("DELETED");
+            association.setStatus(com.example.heritagetrace.entity.Association.STATUS_DELETED);
             associationRepository.save(association);
         });
         

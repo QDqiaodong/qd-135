@@ -46,11 +46,18 @@ export interface AssociationDTO {
   toolId: number;
   toolNumber: string;
   toolName: string;
+  /** 工具的适用工艺，用于说明对不上 */
+  toolCraftType?: string | null;
   inheritorId: number;
   inheritorName: string;
   projectId: number;
   projectName: string;
+  /** 项目的分类，用于说明对不上 */
+  projectCategory?: string | null;
   bindTime: string;
+  /** 工具工艺与项目分类是否一路：false 即挂错 */
+  craftMatched?: boolean;
+  /** ACTIVE 正常在用 / MISMATCH 工艺对不上 / DELETED 已解开 */
   status: string;
 }
 
