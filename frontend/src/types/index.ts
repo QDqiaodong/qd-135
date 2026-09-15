@@ -34,6 +34,8 @@ export interface ProjectDTO {
   category: string;
   description: string;
   parentId?: number;
+  /** 项目阶段：IN_PROGRESS 在研 / UNDER_REVIEW 送审 / COMPLETED 结项 */
+  stage: string;
   children?: ProjectDTO[];
   createTime: string;
   updateTime: string;

@@ -19,10 +19,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class Project {
+    /** 在研：立项后的初始阶段 */
+    public static final String STAGE_IN_PROGRESS = "IN_PROGRESS";
+    /** 送审：已提交评审，要求名下至少挂着一位传承人和一件工具 */
+    public static final String STAGE_UNDER_REVIEW = "UNDER_REVIEW";
+    /** 结项：终态，项目档案锁定，不能再挂关联也不能再改档案 */
+    public static final String STAGE_COMPLETED = "COMPLETED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "name", nullable = false, length = 100)
     private String name;
     
@@ -34,7 +41,10 @@ public class Project {
     
     @Column(name = "parent_id")
     private Long parentId;
-    
+
+    @Column(name = "stage", length = 20)
+    private String stage;
+
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
     
@@ -45,6 +55,9 @@ public class Project {
     protected void onCreate() {
         createTime = LocalDateTime.now();
         updateTime = LocalDateTime.now();
+        if (stage == null) {
+            stage = STAGE_IN_PROGRESS;
+        }
     }
     
     @PreUpdate

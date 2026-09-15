@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ArrowLeft, Save } from 'lucide-vue-next';
+import { ArrowLeft, Save, Lock } from 'lucide-vue-next';
 import { ElForm, ElFormItem, ElInput, ElButton, ElSelect, ElMessage } from 'element-plus';
 import { projectApi } from '@/api';
 import type { ProjectCreateRequest, ProjectUpdateRequest } from '@/api/types';
@@ -12,6 +12,8 @@ const router = useRouter();
 const route = useRoute();
 const isEdit = ref(false);
 const projectId = ref<number | null>(null);
+/** 结项后项目档案锁定，表单只读 */
+const locked = ref(false);
 
 const form = ref({
   name: '',
@@ -27,6 +29,10 @@ const formRules = {
 const parentProjects = ref<ProjectDTO[]>([]);
 
 const handleSubmit = async () => {
+  if (locked.value) {
+    ElMessage.warning('项目已结项，档案已锁定，不能再修改');
+    return;
+  }
   if (isEdit.value && projectId.value) {
     const updateRequest: ProjectUpdateRequest = {
       name: form.value.name,
@@ -119,6 +125,7 @@ onMounted(async () => {
           description: data.description,
           parentId: data.parentId || null,
         };
+        locked.value = data.stage === 'COMPLETED';
       }
     } catch (error) {
       console.error('Failed to load project:', error);
@@ -144,14 +151,22 @@ onMounted(async () => {
           <p class="text-gray-500 text-sm mt-1">非遗项目信息录入</p>
         </div>
       </div>
-      <ElButton type="primary" @click="handleSubmit" class="flex items-center gap-2">
+      <ElButton v-if="!locked" type="primary" @click="handleSubmit" class="flex items-center gap-2">
         <Save class="w-4 h-4" />
         {{ isEdit ? '保存修改' : '创建项目' }}
       </ElButton>
     </div>
-    
+
+    <div
+      v-if="locked"
+      class="mx-6 mt-6 flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500"
+    >
+      <Lock class="w-4 h-4 shrink-0" />
+      该项目已结项，档案已锁定，以下内容仅供查看，不能再修改。
+    </div>
+
     <div class="p-6">
-      <ElForm :model="form" :rules="formRules" label-width="120px" class="max-w-2xl">
+      <ElForm :model="form" :rules="formRules" label-width="120px" class="max-w-2xl" :disabled="locked">
         <ElFormItem label="项目名称" prop="name">
           <ElInput v-model="form.name" placeholder="请输入项目名称" />
         </ElFormItem>

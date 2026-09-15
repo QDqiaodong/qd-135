@@ -56,9 +56,9 @@ public class AssociationService {
         if (!inheritorRepository.existsById(request.getInheritorId())) {
             throw new IllegalArgumentException("传承人不存在");
         }
-        if (!projectRepository.existsById(request.getProjectId())) {
-            throw new IllegalArgumentException("非遗项目不存在");
-        }
+        Project project = projectRepository.findById(request.getProjectId())
+                .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
+        ensureProjectNotCompleted(project);
         
         Association existing = associationRepository
                 .findByToolIdAndInheritorIdAndProjectId(
@@ -134,9 +134,9 @@ public class AssociationService {
         }
         
         if (request.getProjectId() != null && !request.getProjectId().equals(oldProjectId)) {
-            if (!projectRepository.existsById(request.getProjectId())) {
-                throw new IllegalArgumentException("非遗项目不存在");
-            }
+            Project targetProject = projectRepository.findById(request.getProjectId())
+                    .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
+            ensureProjectNotCompleted(targetProject);
             association.setProjectId(request.getProjectId());
             hasChange = true;
             if ("TRANSFER_INHERITOR".equals(actionType)) {
@@ -354,10 +354,16 @@ public class AssociationService {
         return result;
     }
     
+    /** 结项后的项目不许再挂新的关联 */
+    private void ensureProjectNotCompleted(Project project) {
+        if (Project.STAGE_COMPLETED.equals(project.getStage())) {
+            throw new IllegalArgumentException("项目已结项，不能再挂新的关联");
+        }
+    }
+
     private AssociationDTO buildAssociationDTO(Association association) {
         String toolNumber = toolRepository.findById(association.getToolId())
-            .map(Tool::getToolNumber).orElse("");
-        String toolName = toolRepository.findById(association.getToolId())
+            .map(Tool::getToolNumber).orElse("");String toolName = toolRepository.findById(association.getToolId())
             .map(Tool::getToolName).orElse("");
         String inheritorName = inheritorRepository.findById(association.getInheritorId())
             .map(Inheritor::getName).orElse("");

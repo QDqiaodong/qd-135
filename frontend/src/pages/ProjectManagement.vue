@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus, Edit, Trash2, FolderTree, GitMerge, CornerRightUp } from 'lucide-vue-next';
-import { ElTable, ElTableColumn, ElButton, ElDialog, ElSelect, ElMessage } from 'element-plus';
+import { Plus, Edit, Trash2, FolderTree, GitMerge, CornerRightUp, Send, CircleCheck, Lock } from 'lucide-vue-next';
+import { ElTable, ElTableColumn, ElButton, ElDialog, ElSelect, ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { projectApi } from '@/api';
 import type { ProjectDTO } from '@/types';
 import { getApiErrorMessage } from '@/lib/utils';
@@ -120,6 +120,58 @@ const parentName = (parentId?: number) => {
   return projectNameMap().get(parentId) ?? '';
 };
 
+// ---- 阶段推进：在研 → 送审 → 结项，只能顺着走 ----
+const stageLabel = (stage?: string) => {
+  if (stage === 'UNDER_REVIEW') return '送审';
+  if (stage === 'COMPLETED') return '结项';
+  return '在研';
+};
+
+const stageTagType = (stage?: string): 'success' | 'warning' | 'info' => {
+  if (stage === 'COMPLETED') return 'success';
+  if (stage === 'UNDER_REVIEW') return 'warning';
+  return 'info';
+};
+
+const isCompleted = (row: { stage?: string }) => row.stage === 'COMPLETED';
+
+const handleSubmitReview = async (row: unknown) => {
+  const project = row as ProjectDTO;
+  try {
+    const response = await projectApi.updateStage(project.id, { stage: 'UNDER_REVIEW' });
+    if (response.code === 200) {
+      ElMessage.success('已送审');
+      await loadProjects();
+    }
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '送审失败'));
+  }
+};
+
+const handleComplete = async (row: unknown) => {
+  const project = row as ProjectDTO;
+  try {
+    await ElMessageBox.confirm(
+      '结项前请确认该项目名下的关联已全部解开；结项后项目将锁定，不能再挂新的关联，也不能再改项目档案。',
+      '结项确认',
+      { confirmButtonText: '确认结项', cancelButtonText: '取消', type: 'warning' },
+    );
+  } catch {
+    return;
+  }
+  try {
+    const response = await projectApi.updateStage(project.id, { stage: 'COMPLETED' });
+    if (response.code === 200) {
+      ElMessage.success('已结项，项目档案已锁定');
+      await loadProjects();
+    }
+  } catch (error) {
+    // 与他人同时点结项时，后端会提示该项目已结项
+    ElMessage.error(getApiErrorMessage(error, '结项失败'));
+    await loadProjects();
+  }
+};
+
 onMounted(() => {
   loadProjects();
 });
@@ -130,7 +182,7 @@ onMounted(() => {
     <div class="p-6 border-b border-heritage-secondary/20 flex items-center justify-between">
       <div>
         <h2 class="font-serif text-xl font-semibold text-heritage-primary">项目管理</h2>
-        <p class="text-gray-500 text-sm mt-1">非遗项目父子层级挂载管理，挂好的关系刷新后保持不变</p>
+        <p class="text-gray-500 text-sm mt-1">项目阶段按 在研 → 送审 → 结项 逐级推进，结项后档案锁定</p>
       </div>
       <ElButton type="primary" @click="handleCreate" class="flex items-center gap-2">
         <Plus class="w-4 h-4" />
@@ -164,18 +216,47 @@ onMounted(() => {
             <span v-else class="text-gray-400">顶级项目</span>
           </template>
         </ElTableColumn>
+        <ElTableColumn label="阶段" width="90">
+          <template #default="{ row }">
+            <ElTag :type="stageTagType(row.stage)" size="small">{{ stageLabel(row.stage) }}</ElTag>
+          </template>
+        </ElTableColumn>
         <ElTableColumn prop="createTime" label="创建时间" width="170" />
-        <ElTableColumn label="操作" width="230" fixed="right">
+        <ElTableColumn label="操作" width="330" fixed="right">
           <template #default="{ row }">
             <div class="flex items-center gap-1">
-              <ElButton size="small" type="primary" plain @click="handleOpenBind(row)">
+              <ElButton
+                v-if="row.stage === 'IN_PROGRESS'"
+                size="small"
+                type="warning"
+                plain
+                @click="handleSubmitReview(row)"
+              >
+                <Send class="w-4 h-4 mr-1" />
+                送审
+              </ElButton>
+              <ElButton
+                v-else-if="row.stage === 'UNDER_REVIEW'"
+                size="small"
+                type="success"
+                plain
+                @click="handleComplete(row)"
+              >
+                <CircleCheck class="w-4 h-4 mr-1" />
+                结项
+              </ElButton>
+              <span v-else class="text-gray-400 text-xs flex items-center gap-1 px-1">
+                <Lock class="w-3.5 h-3.5" />
+                已锁定
+              </span>
+              <ElButton size="small" type="primary" plain :disabled="isCompleted(row)" @click="handleOpenBind(row)">
                 <GitMerge class="w-4 h-4 mr-1" />
                 {{ row.parentId ? '调整父级' : '挂载父级' }}
               </ElButton>
-              <ElButton size="small" @click="handleEdit(row.id)">
+              <ElButton size="small" :disabled="isCompleted(row)" @click="handleEdit(row.id)">
                 <Edit class="w-4 h-4" />
               </ElButton>
-              <ElButton size="small" type="danger" @click="handleDelete(row.id)">
+              <ElButton size="small" type="danger" :disabled="isCompleted(row)" @click="handleDelete(row.id)">
                 <Trash2 class="w-4 h-4" />
               </ElButton>
             </div>

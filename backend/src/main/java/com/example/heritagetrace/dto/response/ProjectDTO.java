@@ -14,6 +14,7 @@ public class ProjectDTO {
     private String category;
     private String description;
     private Long parentId;
+    private String stage;
     private List<ProjectDTO> children = new ArrayList<>();
     private String createTime;
     private String updateTime;
@@ -27,6 +28,8 @@ public class ProjectDTO {
         dto.setCategory(project.getCategory());
         dto.setDescription(project.getDescription());
         dto.setParentId(project.getParentId());
+        // 历史数据可能没有阶段，一律按在研兜底
+        dto.setStage(project.getStage() == null ? Project.STAGE_IN_PROGRESS : project.getStage());
         if (project.getCreateTime() != null) {
             dto.setCreateTime(project.getCreateTime().format(FORMATTER));
         }

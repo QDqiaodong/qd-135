@@ -2,6 +2,7 @@ package com.example.heritagetrace.controller;
 
 import com.example.heritagetrace.dto.request.ProjectBindParentRequest;
 import com.example.heritagetrace.dto.request.ProjectCreateRequest;
+import com.example.heritagetrace.dto.request.ProjectStageUpdateRequest;
 import com.example.heritagetrace.dto.request.ProjectUpdateRequest;
 import com.example.heritagetrace.dto.response.ApiResponse;
 import com.example.heritagetrace.dto.response.ProjectDTO;
@@ -55,6 +56,14 @@ public class ProjectController {
             @RequestBody ProjectBindParentRequest request) {
         ProjectDTO project = projectService.bindParent(id, request.getParentId());
         return ApiResponse.success("挂载成功", project);
+    }
+
+    @PutMapping("/{id}/stage")
+    public ApiResponse<ProjectDTO> updateStage(
+            @PathVariable Long id,
+            @Valid @RequestBody ProjectStageUpdateRequest request) {
+        ProjectDTO project = projectService.updateStage(id, request);
+        return ApiResponse.success("阶段推进成功", project);
     }
 
     @DeleteMapping("/{id}")

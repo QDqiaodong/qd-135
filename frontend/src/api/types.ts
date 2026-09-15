@@ -49,6 +49,10 @@ export interface ProjectBindParentRequest {
   parentId?: number | null;
 }
 
+export interface ProjectStageUpdateRequest {
+  stage: string;
+}
+
 export interface AssociationBindRequest {
   toolId: number;
   inheritorId: number;

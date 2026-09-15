@@ -79,6 +79,9 @@ const filteredLedger = computed(() => {
   return sortAsc.value ? rows : [...rows].reverse();
 });
 
+// 已结项的项目档案锁定，不能再挂新的关联
+const bindableProjects = computed(() => projects.value.filter((p) => p.stage !== 'COMPLETED'));
+
 const loadTools = async () => {
   try {
     const response = await toolApi.list(0, 100);
@@ -269,7 +272,7 @@ onMounted(() => {
           <ElFormItem label="选择非遗项目" class="w-64">
             <ElSelect v-model="selectedProjectId" placeholder="请选择项目" class="w-full" filterable>
               <ElOption
-                v-for="project in projects"
+                v-for="project in bindableProjects"
                 :key="project.id"
                 :label="`${project.name} - ${project.category || ''}`"
                 :value="project.id"

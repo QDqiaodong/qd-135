@@ -56,6 +56,8 @@ public interface AssociationRepository extends JpaRepository<Association, Long> 
     long countByStatus(String status);
     
     long countByProjectId(Long projectId);
+
+    long countByProjectIdAndStatus(Long projectId, String status);
     
     long countByInheritorId(Long inheritorId);
 }
