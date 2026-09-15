@@ -23,6 +23,10 @@ public class AssociationDTO {
     private String projectCategory;
     /** 工艺与项目分类是否一路（实时比对得出） */
     private boolean craftMatched;
+    /** 挂着的传承人当前状态：ACTIVE 在册 / SUSPENDED 停档 */
+    private String inheritorStatus;
+    /** 传承人为停档时 true：名单上标成停档占用，解开前不算正常在册 */
+    private boolean inheritorSuspended;
     
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     

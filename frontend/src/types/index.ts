@@ -20,6 +20,8 @@ export interface InheritorDTO {
   title: string;
   specialty: string;
   contact: string;
+  /** ACTIVE 在册 / SUSPENDED 停档；旧缓存可能缺省，缺省按在册对待 */
+  status?: string;
   certificateName?: string | null;
   certificateContentType?: string | null;
   certificateSize?: number | null;
@@ -59,6 +61,10 @@ export interface AssociationDTO {
   craftMatched?: boolean;
   /** ACTIVE 正常在用 / MISMATCH 工艺对不上 / DELETED 已解开 */
   status: string;
+  /** 挂着的传承人当前状态：ACTIVE 在册 / SUSPENDED 停档 */
+  inheritorStatus?: string;
+  /** true 即停档占用：仍挂着没解开，但不能当成正常在册 */
+  inheritorSuspended?: boolean;
 }
 
 export interface AssociationHistoryDTO {

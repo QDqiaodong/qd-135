@@ -1,6 +1,7 @@
 package com.example.heritagetrace.controller;
 
 import com.example.heritagetrace.dto.request.InheritorCreateRequest;
+import com.example.heritagetrace.dto.request.InheritorStatusUpdateRequest;
 import com.example.heritagetrace.dto.request.InheritorUpdateRequest;
 import com.example.heritagetrace.dto.response.ApiResponse;
 import com.example.heritagetrace.dto.response.InheritorDTO;
@@ -50,6 +51,14 @@ public class InheritorController {
             @RequestBody InheritorUpdateRequest request) {
         InheritorDTO inheritor = inheritorService.updateInheritor(id, request);
         return ApiResponse.success("更新成功", inheritor);
+    }
+
+    @PutMapping("/{id}/status")
+    public ApiResponse<InheritorDTO> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody InheritorStatusUpdateRequest request) {
+        InheritorDTO inheritor = inheritorService.updateStatus(id, request);
+        return ApiResponse.success("状态已更新", inheritor);
     }
 
     @DeleteMapping("/{id}")

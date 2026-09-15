@@ -25,7 +25,8 @@ public class DashboardService {
     public DashboardStats getStats() {
         DashboardStats stats = new DashboardStats();
         stats.setToolCount(toolRepository.count());
-        stats.setInheritorCount(inheritorRepository.count());
+        // 在册人数只算没停档的，停档档案不进这个数
+        stats.setInheritorCount(inheritorRepository.countRegistered());
         stats.setProjectCount(projectRepository.count());
         stats.setAssociationCount(associationRepository.countByStatus(com.example.heritagetrace.entity.Association.STATUS_ACTIVE));
         return stats;

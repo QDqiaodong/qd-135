@@ -12,6 +12,8 @@ public class InheritorDTO {
     private String title;
     private String specialty;
     private String contact;
+    /** ACTIVE 在册 / SUSPENDED 停档 */
+    private String status;
     private String certificateName;
     private String certificateContentType;
     private Long certificateSize;
@@ -27,12 +29,14 @@ public class InheritorDTO {
     public InheritorDTO(Long id, String name, String title, String specialty, String contact,
                         String certificateName, String certificateContentType, Long certificateSize,
                         java.time.LocalDateTime certificateUploadTime,
-                        java.time.LocalDateTime createTime, java.time.LocalDateTime updateTime) {
+                        java.time.LocalDateTime createTime, java.time.LocalDateTime updateTime,
+                        String status) {
         this.id = id;
         this.name = name;
         this.title = title;
         this.specialty = specialty;
         this.contact = contact;
+        this.status = status;
         this.certificateName = certificateName;
         this.certificateContentType = certificateContentType;
         this.certificateSize = certificateSize;
@@ -57,6 +61,7 @@ public class InheritorDTO {
         dto.setTitle(inheritor.getTitle());
         dto.setSpecialty(inheritor.getSpecialty());
         dto.setContact(inheritor.getContact());
+        dto.setStatus(inheritor.getStatus());
         dto.setCertificateName(inheritor.getCertificateName());
         dto.setCertificateContentType(inheritor.getCertificateContentType());
         dto.setCertificateSize(inheritor.getCertificateSize());

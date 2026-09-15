@@ -1,6 +1,7 @@
 package com.example.heritagetrace.service;
 
 import com.example.heritagetrace.dto.request.InheritorCreateRequest;
+import com.example.heritagetrace.dto.request.InheritorStatusUpdateRequest;
 import com.example.heritagetrace.dto.request.InheritorUpdateRequest;
 import com.example.heritagetrace.dto.response.InheritorDTO;
 import com.example.heritagetrace.entity.Inheritor;
@@ -91,6 +92,39 @@ public class InheritorService {
 
         redisTemplate.opsForValue().set(cacheKey, dtoPage, LIST_CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES);
         return dtoPage;
+    }
+
+    /**
+     * 停档 / 重新启用。传承人行加悲观写锁：
+     * 两人同一时刻一个停档、一个启用时，后到的事务阻塞到先到的提交，
+     * 再读到最新状态继续，看板人数、名单标记和能不能再挂
+     * 都以最后落成的那一份为准。
+     */
+    @Transactional
+    public InheritorDTO updateStatus(Long id, InheritorStatusUpdateRequest request) {
+        String target = request.getStatus() == null ? "" : request.getStatus().trim();
+        if (!Inheritor.STATUS_ACTIVE.equals(target) && !Inheritor.STATUS_SUSPENDED.equals(target)) {
+            throw new IllegalArgumentException("未知的传承人状态：" + target);
+        }
+
+        Inheritor inheritor = inheritorRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new IllegalArgumentException("传承人不存在"));
+
+        String current = inheritor.getStatus() == null ? Inheritor.STATUS_ACTIVE : inheritor.getStatus();
+        if (current.equals(target)) {
+            throw new IllegalArgumentException("该传承人已处于「" + statusLabel(target) + "」状态，请勿重复操作");
+        }
+
+        inheritor.setStatus(target);
+        Inheritor saved = inheritorRepository.save(inheritor);
+        clearCache(id);
+        // 停档占用标记会出现在溯源结果里，按旧状态算好的缓存一并作废
+        clearTraceCaches();
+        return InheritorDTO.fromEntity(saved);
+    }
+
+    private String statusLabel(String status) {
+        return Inheritor.STATUS_SUSPENDED.equals(status) ? "停档" : "在册";
     }
 
     @Transactional
@@ -207,6 +241,13 @@ public class InheritorService {
 
     private void clearListCache() {
         redisTemplate.keys(INHERITOR_LIST_CACHE_KEY_PREFIX + "*").forEach(redisTemplate::delete);
+    }
+
+    private void clearTraceCaches() {
+        Set<String> keys = redisTemplate.keys("associations:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
     }
 
     /** 资格证明文件内容载体 */

@@ -35,10 +35,10 @@ const statCards = [
     color: 'bg-blue-500',
     suffix: '件'
   },
-  { 
-    title: '传承人总数', 
-    value: () => stats.value.inheritorCount, 
-    icon: Users, 
+  {
+    title: '在册传承人',
+    value: () => stats.value.inheritorCount,
+    icon: Users,
     color: 'bg-green-500',
     suffix: '人'
   },

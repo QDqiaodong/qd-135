@@ -18,10 +18,15 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class Inheritor {
+    /** 在册：正常档案，计入看板在册人数，可以挂进在研项目 */
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    /** 停档：不计入看板在册人数，不能再挂进在研项目，已挂着的标成停档占用 */
+    public static final String STATUS_SUSPENDED = "SUSPENDED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "name", nullable = false, length = 50)
     private String name;
     
@@ -33,6 +38,9 @@ public class Inheritor {
     
     @Column(name = "contact", length = 100)
     private String contact;
+
+    @Column(name = "status", length = 20)
+    private String status;
 
     @Column(name = "certificate_name", length = 255)
     private String certificateName;
@@ -60,6 +68,9 @@ public class Inheritor {
     protected void onCreate() {
         createTime = LocalDateTime.now();
         updateTime = LocalDateTime.now();
+        if (status == null) {
+            status = STATUS_ACTIVE;
+        }
     }
     
     @PreUpdate

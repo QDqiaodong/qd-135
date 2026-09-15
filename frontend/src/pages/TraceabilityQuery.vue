@@ -118,10 +118,10 @@ onMounted(() => {
           <ElTabPane label="按传承人溯源" name="inheritor">
             <div class="flex items-center gap-4 mt-4">
               <ElSelect v-model="selectedInheritorId" placeholder="请选择传承人" class="w-80">
-                <ElOption 
-                  v-for="inheritor in inheritors" 
-                  :key="inheritor.id" 
-                  :label="`${inheritor.name} - ${inheritor.title || '传承人'}`" 
+                <ElOption
+                  v-for="inheritor in inheritors"
+                  :key="inheritor.id"
+                  :label="`${inheritor.name} - ${inheritor.title || '传承人'}${inheritor.status === 'SUSPENDED' ? '（已停档）' : ''}`"
                   :value="inheritor.id"
                 />
               </ElSelect>
@@ -201,12 +201,15 @@ onMounted(() => {
             </span>
           </div>
           <div class="space-y-2">
-            <div 
-              v-for="inheritor in traceResult.associatedInheritors" 
+            <div
+              v-for="inheritor in traceResult.associatedInheritors"
               :key="inheritor.id"
               class="p-3 bg-green-50 rounded-lg"
             >
-              <div class="font-medium text-gray-800">{{ inheritor.name }} - {{ inheritor.title || '传承人' }}</div>
+              <div class="font-medium text-gray-800">
+                {{ inheritor.name }} - {{ inheritor.title || '传承人' }}
+                <span v-if="inheritor.status === 'SUSPENDED'" class="ml-1 text-xs text-red-500">[停档]</span>
+              </div>
               <div class="text-sm text-gray-500">专长：{{ inheritor.specialty }}</div>
             </div>
             <div v-if="traceResult.associatedInheritors.length === 0" class="text-center text-gray-400 py-4">
@@ -251,11 +254,14 @@ onMounted(() => {
             <ElTableColumn prop="inheritorName" label="传承人" width="120" />
             <ElTableColumn prop="projectName" label="非遗项目" width="150" />
             <ElTableColumn prop="bindTime" label="绑定时间" width="160" />
-            <ElTableColumn prop="status" label="状态" width="100">
+            <ElTableColumn prop="status" label="状态" width="140">
               <template #default="{ row }">
-                <span :class="row.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-500'">
-                  {{ row.status === 'ACTIVE' ? '有效' : '已解绑' }}
-                </span>
+                <div class="flex flex-wrap items-center gap-1">
+                  <span :class="row.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-500'">
+                    {{ row.status === 'ACTIVE' ? '有效' : '已解绑' }}
+                  </span>
+                  <span v-if="row.inheritorSuspended" class="text-amber-600">停档占用</span>
+                </div>
               </template>
             </ElTableColumn>
           </ElTable>

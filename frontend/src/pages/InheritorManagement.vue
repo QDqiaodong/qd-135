@@ -2,10 +2,10 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Plus, Search, Edit, Trash2, Eye, FileText, Download } from 'lucide-vue-next';
-import { ElTable, ElTableColumn, ElPagination, ElButton, ElInput, ElDialog, ElMessage } from 'element-plus';
+import { ElTable, ElTableColumn, ElPagination, ElButton, ElInput, ElDialog, ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { inheritorApi } from '@/api';
 import type { InheritorDTO, PageResponse } from '@/types';
-import { formatFileSize } from '@/lib/utils';
+import { formatFileSize, getApiErrorMessage } from '@/lib/utils';
 
 const router = useRouter();
 const inheritors = ref<InheritorDTO[]>([]);
@@ -76,6 +76,37 @@ const handleView = (inheritor: unknown) => {
   viewDialogVisible.value = true;
 };
 
+const isSuspended = (row: unknown) => (row as InheritorDTO | null)?.status === 'SUSPENDED';
+
+const handleToggleStatus = async (row: unknown) => {
+  const inheritor = row as InheritorDTO;
+  const suspending = !isSuspended(inheritor);
+  const actionText = suspending ? '停档' : '启用';
+  try {
+    await ElMessageBox.confirm(
+      suspending
+        ? `确认将「${inheritor.name}」停档？停档后不计入看板在册人数，也不能再挂进在研项目；已挂着的关联会标成停档占用。`
+        : `确认将「${inheritor.name}」重新启用？启用后恢复计入看板在册人数，可以再次挂进在研项目。`,
+      `${actionText}确认`,
+      { confirmButtonText: `确认${actionText}`, cancelButtonText: '取消', type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    const response = await inheritorApi.updateStatus(inheritor.id, {
+      status: suspending ? 'SUSPENDED' : 'ACTIVE',
+    });
+    if (response.code === 200) {
+      ElMessage.success(`${actionText}成功`);
+      loadInheritors();
+    }
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, `${actionText}失败`));
+  }
+};
+
 onMounted(() => {
   loadInheritors();
 });
@@ -115,8 +146,14 @@ onMounted(() => {
         <ElTableColumn prop="title" label="称号" width="120" />
         <ElTableColumn prop="specialty" label="专长" width="150" />
         <ElTableColumn prop="contact" label="联系方式" width="150" />
+        <ElTableColumn label="在册状态" width="100">
+          <template #default="{ row }">
+            <ElTag v-if="isSuspended(row)" type="danger" size="small">停档</ElTag>
+            <ElTag v-else type="success" size="small">在册</ElTag>
+          </template>
+        </ElTableColumn>
         <ElTableColumn prop="createTime" label="创建时间" width="160" />
-        <ElTableColumn label="操作" width="180" fixed="right">
+        <ElTableColumn label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <div class="flex items-center gap-2">
               <ElButton size="small" @click="handleView(row)">
@@ -124,6 +161,13 @@ onMounted(() => {
               </ElButton>
               <ElButton size="small" type="primary" @click="handleEdit(row.id)">
                 <Edit class="w-4 h-4" />
+              </ElButton>
+              <ElButton
+                size="small"
+                :type="isSuspended(row) ? 'success' : 'warning'"
+                @click="handleToggleStatus(row)"
+              >
+                {{ isSuspended(row) ? '启用' : '停档' }}
               </ElButton>
               <ElButton size="small" type="danger" @click="handleDelete(row.id)">
                 <Trash2 class="w-4 h-4" />
@@ -163,6 +207,11 @@ onMounted(() => {
           <div>
             <label class="block text-sm font-medium text-gray-600">联系方式</label>
             <p>{{ currentInheritor.contact || '-' }}</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600">在册状态</label>
+            <ElTag v-if="isSuspended(currentInheritor)" type="danger" size="small">停档</ElTag>
+            <ElTag v-else type="success" size="small">在册</ElTag>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-600">创建时间</label>

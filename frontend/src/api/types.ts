@@ -31,6 +31,11 @@ export interface InheritorUpdateRequest {
   contact?: string;
 }
 
+/** 在册状态变更：ACTIVE 重新启用 / SUSPENDED 停档 */
+export interface InheritorStatusUpdateRequest {
+  status: string;
+}
+
 export interface ProjectCreateRequest {
   name: string;
   category?: string;

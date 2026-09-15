@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { ApiResponse, PageResponse, ToolDTO, InheritorDTO, ProjectDTO, AssociationDTO, AssociationHistoryDTO, TraceabilityResult, DashboardStats } from '@/types';
-import type { ToolCreateRequest, ToolUpdateRequest, InheritorCreateRequest, InheritorUpdateRequest, ProjectCreateRequest, ProjectUpdateRequest, ProjectBindParentRequest, ProjectStageUpdateRequest, AssociationBindRequest, AssociationUpdateRequest } from '@/api/types';
+import type { ToolCreateRequest, ToolUpdateRequest, InheritorCreateRequest, InheritorUpdateRequest, InheritorStatusUpdateRequest, ProjectCreateRequest, ProjectUpdateRequest, ProjectBindParentRequest, ProjectStageUpdateRequest, AssociationBindRequest, AssociationUpdateRequest } from '@/api/types';
 
 const request = axios.create({
   baseURL: '/api',
@@ -45,6 +45,9 @@ export const inheritorApi = {
   },
   update(id: number, data: InheritorUpdateRequest): Promise<ApiResponse<InheritorDTO>> {
     return request.put(`/inheritors/${id}`, data);
+  },
+  updateStatus(id: number, data: InheritorStatusUpdateRequest): Promise<ApiResponse<InheritorDTO>> {
+    return request.put(`/inheritors/${id}/status`, data);
   },
   delete(id: number): Promise<ApiResponse<void>> {
     return request.delete(`/inheritors/${id}`);

@@ -84,6 +84,11 @@ const filteredLedger = computed(() => {
 // 已结项的项目档案锁定，不能再挂新的关联
 const bindableProjects = computed(() => projects.value.filter((p) => p.stage !== 'COMPLETED'));
 
+// 停档的人不能再挂进在研项目：下拉里标出并禁选，提交前再拦一道，后端兜底
+const isInheritorSuspended = (inheritor?: InheritorDTO | null) => inheritor?.status === 'SUSPENDED';
+
+const selectedInheritor = computed(() => inheritors.value.find((i) => i.id === selectedInheritorId.value));
+
 const normalizeCraft = (value?: string | null) => (value || '').trim();
 
 const selectedTool = computed(() => tools.value.find((t) => t.id === selectedToolId.value));
@@ -105,12 +110,14 @@ const selectionMismatchText = computed(() => {
 });
 
 // 选择一变，上一轮的拦截提示立即清掉
-watch([selectedToolId, selectedProjectId], () => {
+watch([selectedToolId, selectedProjectId, selectedInheritorId], () => {
   bindErrorHint.value = '';
 });
 
 const isMismatchRow = (row: any) =>
   row.status === 'MISMATCH' || row.craftMatched === false;
+
+const isSuspendedRow = (row: any) => row.inheritorSuspended === true;
 
 const rowMismatchText = (row: any) => {
   const craft = normalizeCraft(row.toolCraftType);
@@ -196,6 +203,14 @@ const resetBindForm = () => {
 const handleBind = async () => {
   if (!selectedToolId.value || !selectedInheritorId.value || !selectedProjectId.value) {
     ElMessage.warning('请选择工具、传承人和非遗项目');
+    return;
+  }
+
+  // 停档的人不能挂进在研项目：前端先拦一道，后端还会再兜底，并发以最后落成的状态为准
+  if (isInheritorSuspended(selectedInheritor.value)) {
+    const hint = `传承人「${selectedInheritor.value?.name}」已停档，不能再挂进在研项目`;
+    bindErrorHint.value = hint;
+    ElMessage.error(hint);
     return;
   }
 
@@ -314,8 +329,9 @@ onMounted(() => {
               <ElOption
                 v-for="inheritor in inheritors"
                 :key="inheritor.id"
-                :label="`${inheritor.name} - ${inheritor.title || '传承人'}`"
+                :label="`${inheritor.name} - ${inheritor.title || '传承人'}${isInheritorSuspended(inheritor) ? '（已停档）' : ''}`"
                 :value="inheritor.id"
+                :disabled="isInheritorSuspended(inheritor)"
               />
             </ElSelect>
           </ElFormItem>
@@ -377,7 +393,7 @@ onMounted(() => {
         <div class="flex items-center gap-2">
           <Link2 class="w-5 h-5 text-heritage-accent" />
           <h3 class="font-serif text-lg font-semibold text-heritage-primary">当前关联名单</h3>
-          <span class="ml-auto text-sm text-gray-400">仍挂着的一组人都在这里；工艺对不上的会标红，解开前不能当成正常在用</span>
+          <span class="ml-auto text-sm text-gray-400">仍挂着的一组人都在这里；工艺对不上、停档占用的会标出，解开前不能当成正常在用</span>
         </div>
       </div>
 
@@ -386,7 +402,7 @@ onMounted(() => {
           :data="associations"
           border
           class="w-full"
-          :row-class-name="({ row }) => (isMismatchRow(row) ? 'row-craft-mismatch' : '')"
+          :row-class-name="({ row }) => (isMismatchRow(row) ? 'row-craft-mismatch' : isSuspendedRow(row) ? 'row-inheritor-suspended' : '')"
         >
           <ElTableColumn prop="toolNumber" label="工具编号" width="120" />
           <ElTableColumn label="工具名称 / 工艺" min-width="180">
@@ -405,16 +421,22 @@ onMounted(() => {
           <ElTableColumn prop="bindTime" label="本次挂上时间" width="170" />
           <ElTableColumn label="状态" width="170">
             <template #default="{ row }">
-              <ElTag v-if="isMismatchRow(row)" type="danger" size="small">工艺对不上</ElTag>
-              <ElTag v-else type="success" size="small">有效</ElTag>
+              <div class="flex flex-wrap items-center gap-1">
+                <ElTag v-if="isMismatchRow(row)" type="danger" size="small">工艺对不上</ElTag>
+                <ElTag v-if="isSuspendedRow(row)" type="warning" size="small">停档占用</ElTag>
+                <ElTag v-if="!isMismatchRow(row) && !isSuspendedRow(row)" type="success" size="small">有效</ElTag>
+              </div>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="对不上说明" min-width="220">
+          <ElTableColumn label="标记说明" min-width="220">
             <template #default="{ row }">
-              <span v-if="isMismatchRow(row)" class="text-red-600 text-sm">
+              <div v-if="isMismatchRow(row)" class="text-red-600 text-sm">
                 {{ rowMismatchText(row) }}
-              </span>
-              <span v-else class="text-gray-300 text-sm">-</span>
+              </div>
+              <div v-if="isSuspendedRow(row)" class="text-amber-600 text-sm">
+                传承人已停档，停档占用，解开前不能当成正常在册
+              </div>
+              <span v-if="!isMismatchRow(row) && !isSuspendedRow(row)" class="text-gray-300 text-sm">-</span>
             </template>
           </ElTableColumn>
           <ElTableColumn label="操作" width="150" fixed="right">
@@ -569,12 +591,19 @@ onMounted(() => {
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-600">状态</label>
-            <ElTag v-if="isMismatchRow(currentAssociation)" type="danger" size="small">工艺对不上</ElTag>
-            <ElTag v-else type="success" size="small">有效</ElTag>
+            <div class="flex flex-wrap items-center gap-1">
+              <ElTag v-if="isMismatchRow(currentAssociation)" type="danger" size="small">工艺对不上</ElTag>
+              <ElTag v-if="isSuspendedRow(currentAssociation)" type="warning" size="small">停档占用</ElTag>
+              <ElTag v-if="!isMismatchRow(currentAssociation) && !isSuspendedRow(currentAssociation)" type="success" size="small">有效</ElTag>
+            </div>
           </div>
           <div v-if="isMismatchRow(currentAssociation)" class="col-span-2">
             <label class="block text-sm font-medium text-red-600 mb-1">对不上说明</label>
             <p class="text-red-600 text-sm">{{ rowMismatchText(currentAssociation) }}；解开前不能当成正常在用</p>
+          </div>
+          <div v-if="isSuspendedRow(currentAssociation)" class="col-span-2">
+            <label class="block text-sm font-medium text-amber-600 mb-1">停档占用说明</label>
+            <p class="text-amber-600 text-sm">传承人已停档，看板在册人数不计入；该关联解开前不能当成正常在册</p>
           </div>
         </div>
       </div>
@@ -589,5 +618,12 @@ onMounted(() => {
 }
 :deep(.el-table .row-craft-mismatch:hover td) {
   background-color: #fde2e2 !important;
+}
+/* 停档占用的整行标橙，提示解开前不能当成正常在册 */
+:deep(.el-table .row-inheritor-suspended td) {
+  background-color: #fdf6ec !important;
+}
+:deep(.el-table .row-inheritor-suspended:hover td) {
+  background-color: #faecd8 !important;
 }
 </style>

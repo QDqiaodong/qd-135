@@ -52,9 +52,10 @@ public class AssociationService {
     public AssociationDTO bind(AssociationBindRequest request) {
         Tool tool = toolRepository.findById(request.getToolId())
                 .orElseThrow(() -> new IllegalArgumentException("工具不存在"));
-        if (!inheritorRepository.existsById(request.getInheritorId())) {
-            throw new IllegalArgumentException("传承人不存在");
-        }
+        // 锁住行再核对状态：与停档/启用并发时，以对方先落成的结果为准
+        Inheritor inheritor = inheritorRepository.findByIdForUpdate(request.getInheritorId())
+                .orElseThrow(() -> new IllegalArgumentException("传承人不存在"));
+        ensureInheritorActive(inheritor);
         Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
         ensureProjectNotCompleted(project);
@@ -135,14 +136,16 @@ public class AssociationService {
         Long oldProjectId = association.getProjectId();
 
         boolean hasChange = false;
+        boolean inheritorChanging = false;
         String actionType = "UPDATE";
 
         if (request.getInheritorId() != null && !request.getInheritorId().equals(oldInheritorId)) {
-            if (!inheritorRepository.existsById(request.getInheritorId())) {
-                throw new IllegalArgumentException("传承人不存在");
-            }
+            Inheritor target = inheritorRepository.findByIdForUpdate(request.getInheritorId())
+                    .orElseThrow(() -> new IllegalArgumentException("传承人不存在"));
+            ensureInheritorActive(target);
             association.setInheritorId(request.getInheritorId());
             hasChange = true;
+            inheritorChanging = true;
             actionType = "TRANSFER_INHERITOR";
         }
 
@@ -150,6 +153,15 @@ public class AssociationService {
             Project targetProject = projectRepository.findById(request.getProjectId())
                     .orElseThrow(() -> new IllegalArgumentException("非遗项目不存在"));
             ensureProjectNotCompleted(targetProject);
+            if (!inheritorChanging) {
+                // 持有人不变、只换项目，等于把同一个人挂进另一个在研项目：
+                // 停档占用的关联不许这么动，只能先解开
+                Inheritor holder = inheritorRepository.findByIdForUpdate(oldInheritorId).orElse(null);
+                if (holder != null && Inheritor.STATUS_SUSPENDED.equals(holder.getStatus())) {
+                    throw new IllegalArgumentException("传承人「" + holder.getName()
+                            + "」已停档，停档占用的关联请先解开，不能换挂到其他在研项目");
+                }
+            }
             Tool boundTool = toolRepository.findById(association.getToolId())
                     .orElseThrow(() -> new IllegalArgumentException("关联工具不存在"));
             ensureCraftMatched(boundTool, targetProject);
@@ -200,11 +212,11 @@ public class AssociationService {
         if (request.getInheritorId() == null) {
             throw new IllegalArgumentException("必须指定新传承人");
         }
-        
-        if (!inheritorRepository.existsById(request.getInheritorId())) {
-            throw new IllegalArgumentException("新传承人不存在");
-        }
-        
+
+        Inheritor target = inheritorRepository.findByIdForUpdate(request.getInheritorId())
+                .orElseThrow(() -> new IllegalArgumentException("新传承人不存在"));
+        ensureInheritorActive(target);
+
         if (request.getInheritorId().equals(oldInheritorId)) {
             throw new IllegalArgumentException("新传承人不能与原传承人相同");
         }
@@ -377,6 +389,13 @@ public class AssociationService {
         }
     }
 
+    /** 停档的人不许再挂进在研项目：新挂、更换、移交都先过这道 */
+    private void ensureInheritorActive(Inheritor inheritor) {
+        if (Inheritor.STATUS_SUSPENDED.equals(inheritor.getStatus())) {
+            throw new IllegalArgumentException("传承人「" + inheritor.getName() + "」已停档，不能再挂进在研项目");
+        }
+    }
+
     /** 挂上/换项目时，工具工艺必须与项目分类一路，否则给出具体对不上的提示 */
     private void ensureCraftMatched(Tool tool, Project project) {
         if (!CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory())) {
@@ -446,6 +465,11 @@ public class AssociationService {
         }
         if (project != null) {
             dto.setProjectCategory(project.getCategory());
+        }
+        if (inheritor != null) {
+            // 停档占用跟着传承人当前状态走：停档即标出，重新启用即消失
+            dto.setInheritorStatus(inheritor.getStatus());
+            dto.setInheritorSuspended(Inheritor.STATUS_SUSPENDED.equals(inheritor.getStatus()));
         }
         boolean matched = tool != null && project != null
                 && CraftMatcher.isCraftMatched(tool.getCraftType(), project.getCategory());
