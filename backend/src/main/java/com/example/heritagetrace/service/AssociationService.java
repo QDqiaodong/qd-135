@@ -60,22 +60,47 @@ public class AssociationService {
             throw new IllegalArgumentException("非遗项目不存在");
         }
         
-        if (associationRepository.existsByToolIdAndInheritorIdAndProjectId(
-                request.getToolId(), request.getInheritorId(), request.getProjectId())) {
+        Association existing = associationRepository
+                .findByToolIdAndInheritorIdAndProjectId(
+                        request.getToolId(), request.getInheritorId(), request.getProjectId())
+                .orElse(null);
+
+        if (existing != null && "ACTIVE".equals(existing.getStatus())) {
             throw new IllegalArgumentException("该三方关联已存在");
         }
-        
+
+        if (existing != null) {
+            existing.setStatus("ACTIVE");
+            existing.setBindTime(java.time.LocalDateTime.now());
+            Association reactivated = associationRepository.save(existing);
+
+            AssociationHistory history = AssociationHistory.builder()
+                    .associationId(reactivated.getId())
+                    .toolId(request.getToolId())
+                    .actionType("BIND")
+                    .newInheritorId(request.getInheritorId())
+                    .newProjectId(request.getProjectId())
+                    .remark(request.getRemark())
+                    .build();
+            associationHistoryRepository.save(history);
+
+            clearTraceCache(request.getToolId(), request.getInheritorId(), request.getProjectId());
+
+            return buildAssociationDTO(reactivated);
+        }
+
         Association association = Association.builder()
                 .toolId(request.getToolId())
                 .inheritorId(request.getInheritorId())
                 .projectId(request.getProjectId())
                 .status("ACTIVE")
                 .build();
-        
+
         Association saved = associationRepository.save(association);
-        
+
         AssociationHistory history = AssociationHistory.builder()
                 .associationId(saved.getId())
+                .toolId(request.getToolId())
                 .actionType("BIND")
                 .newInheritorId(request.getInheritorId())
                 .newProjectId(request.getProjectId())
@@ -129,6 +154,7 @@ public class AssociationService {
         
         AssociationHistory history = AssociationHistory.builder()
                 .associationId(updated.getId())
+                .toolId(association.getToolId())
                 .actionType(actionType)
                 .oldInheritorId(oldInheritorId)
                 .newInheritorId(association.getInheritorId())
@@ -137,13 +163,13 @@ public class AssociationService {
                 .remark(request.getRemark())
                 .build();
         associationHistoryRepository.save(history);
-        
+
         clearTraceCache(association.getToolId(), oldInheritorId, oldProjectId);
         clearTraceCache(association.getToolId(), association.getInheritorId(), association.getProjectId());
-        
+
         return buildAssociationDTO(updated);
     }
-    
+
     @Transactional
     public AssociationDTO transfer(Long id, AssociationUpdateRequest request) {
         Association association = associationRepository.findById(id)
@@ -172,6 +198,7 @@ public class AssociationService {
         
         AssociationHistory history = AssociationHistory.builder()
                 .associationId(updated.getId())
+                .toolId(association.getToolId())
                 .actionType("TRANSFER")
                 .oldInheritorId(oldInheritorId)
                 .newInheritorId(request.getInheritorId())
@@ -189,18 +216,23 @@ public class AssociationService {
     public void delete(Long id) {
         Association association = associationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("关联记录不存在"));
-        
+
+        if ("DELETED".equals(association.getStatus())) {
+            throw new IllegalArgumentException("该关联已解绑，无需重复操作");
+        }
+
         association.setStatus("DELETED");
         associationRepository.save(association);
-        
+
         AssociationHistory history = AssociationHistory.builder()
                 .associationId(id)
+                .toolId(association.getToolId())
                 .actionType("UNBIND")
                 .oldInheritorId(association.getInheritorId())
                 .oldProjectId(association.getProjectId())
                 .build();
         associationHistoryRepository.save(history);
-        
+
         clearTraceCache(association.getToolId(), association.getInheritorId(), association.getProjectId());
     }
     
@@ -339,28 +371,68 @@ public class AssociationService {
         if (!associationRepository.existsById(associationId)) {
             throw new IllegalArgumentException("关联记录不存在");
         }
-        
+
         return associationHistoryRepository.findByAssociationIdOrderByActionTimeDesc(associationId).stream()
-                .map(entity -> {
-                    AssociationHistoryDTO dto = AssociationHistoryDTO.fromEntity(entity);
-                    dto.setOldInheritorName(entity.getOldInheritorId() != null 
-                            ? inheritorRepository.findById(entity.getOldInheritorId())
-                                    .map(Inheritor::getName).orElse("")
-                            : "");
-                    dto.setNewInheritorName(entity.getNewInheritorId() != null 
-                            ? inheritorRepository.findById(entity.getNewInheritorId())
-                                    .map(Inheritor::getName).orElse("")
-                            : "");
-                    dto.setOldProjectName(entity.getOldProjectId() != null 
-                            ? projectRepository.findById(entity.getOldProjectId())
-                                    .map(Project::getName).orElse("")
-                            : "");
-                    dto.setNewProjectName(entity.getNewProjectId() != null 
-                            ? projectRepository.findById(entity.getNewProjectId())
-                                    .map(Project::getName).orElse("")
-                            : "");
-                    return dto;
+                .map(this::buildHistoryDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<AssociationHistoryDTO> getLedger(Long toolId, Long inheritorId, Long projectId) {
+        return associationHistoryRepository.findLedger(toolId, inheritorId, projectId).stream()
+                .map(this::buildHistoryDTO)
+                .collect(Collectors.toList());
+    }
+
+    private AssociationHistoryDTO buildHistoryDTO(AssociationHistory entity) {
+        AssociationHistoryDTO dto = AssociationHistoryDTO.fromEntity(entity);
+
+        Long resolvedToolId = entity.getToolId();
+        if (resolvedToolId == null) {
+            resolvedToolId = associationRepository.findById(entity.getAssociationId())
+                    .map(Association::getToolId).orElse(null);
+            dto.setToolId(resolvedToolId);
+        }
+        if (resolvedToolId != null) {
+            toolRepository.findById(resolvedToolId).ifPresent(tool -> {
+                dto.setToolNumber(tool.getToolNumber());
+                dto.setToolName(tool.getToolName());
+            });
+        }
+
+        dto.setOldInheritorName(entity.getOldInheritorId() != null
+                ? inheritorRepository.findById(entity.getOldInheritorId())
+                        .map(Inheritor::getName).orElse("")
+                : "");
+        dto.setNewInheritorName(entity.getNewInheritorId() != null
+                ? inheritorRepository.findById(entity.getNewInheritorId())
+                        .map(Inheritor::getName).orElse("")
+                : "");
+        dto.setOldProjectName(entity.getOldProjectId() != null
+                ? projectRepository.findById(entity.getOldProjectId())
+                        .map(Project::getName).orElse("")
+                : "");
+        dto.setNewProjectName(entity.getNewProjectId() != null
+                ? projectRepository.findById(entity.getNewProjectId())
+                        .map(Project::getName).orElse("")
+                : "");
+        return dto;
+    }
+
+    public List<AssociationDTO> list(String status) {
+        String normalized = (status == null || status.isBlank()) ? null : status.trim();
+        List<Association> associations = normalized == null
+                ? associationRepository.findAll()
+                : associationRepository.findByStatus(normalized);
+        return associations.stream()
+                .sorted((a, b) -> {
+                    java.time.LocalDateTime ta = a.getBindTime();
+                    java.time.LocalDateTime tb = b.getBindTime();
+                    if (ta == null && tb == null) return 0;
+                    if (ta == null) return 1;
+                    if (tb == null) return -1;
+                    return tb.compareTo(ta);
                 })
+                .map(this::buildAssociationDTO)
                 .collect(Collectors.toList());
     }
     

@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "association_history", indexes = {
     @Index(name = "idx_association_id", columnList = "associationId"),
+    @Index(name = "idx_history_tool_id", columnList = "toolId"),
     @Index(name = "idx_action_type", columnList = "actionType"),
     @Index(name = "idx_action_time", columnList = "actionTime")
 })
@@ -25,7 +26,10 @@ public class AssociationHistory {
     
     @Column(name = "association_id", nullable = false)
     private Long associationId;
-    
+
+    @Column(name = "tool_id")
+    private Long toolId;
+
     @Column(name = "action_type", nullable = false, length = 20)
     private String actionType;
     

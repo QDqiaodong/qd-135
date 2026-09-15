@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ApiResponse, PageResponse, ToolDTO, InheritorDTO, ProjectDTO, AssociationDTO, TraceabilityResult, DashboardStats } from '@/types';
+import type { ApiResponse, PageResponse, ToolDTO, InheritorDTO, ProjectDTO, AssociationDTO, AssociationHistoryDTO, TraceabilityResult, DashboardStats } from '@/types';
 import type { ToolCreateRequest, ToolUpdateRequest, InheritorCreateRequest, InheritorUpdateRequest, ProjectCreateRequest, ProjectUpdateRequest, ProjectBindParentRequest, AssociationBindRequest, AssociationUpdateRequest } from '@/api/types';
 
 const request = axios.create({
@@ -84,6 +84,16 @@ export const projectApi = {
 };
 
 export const associationApi = {
+  list(status?: string): Promise<ApiResponse<AssociationDTO[]>> {
+    return request.get('/associations', { params: { status } });
+  },
+  ledger(params?: {
+    toolId?: number;
+    inheritorId?: number;
+    projectId?: number;
+  }): Promise<ApiResponse<AssociationHistoryDTO[]>> {
+    return request.get('/associations/ledger', { params });
+  },
   bind(data: AssociationBindRequest): Promise<ApiResponse<AssociationDTO>> {
     return request.post('/associations', data);
   },

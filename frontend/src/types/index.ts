@@ -50,6 +50,26 @@ export interface AssociationDTO {
   status: string;
 }
 
+export interface AssociationHistoryDTO {
+  id: number;
+  associationId: number;
+  toolId?: number;
+  toolNumber?: string;
+  toolName?: string;
+  actionType: string;
+  oldInheritorId?: number;
+  oldInheritorName?: string;
+  newInheritorId?: number;
+  newInheritorName?: string;
+  oldProjectId?: number;
+  oldProjectName?: string;
+  newProjectId?: number;
+  newProjectName?: string;
+  remark?: string;
+  actionTime?: string;
+  actionTimeText?: string;
+}
+
 export interface TraceabilityResult {
   mainEntity: { id: number; name: string; type: string };
   associatedTools: ToolDTO[];

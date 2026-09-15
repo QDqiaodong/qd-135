@@ -45,6 +45,20 @@ public class AssociationController {
         return ApiResponse.success("解绑成功", null);
     }
     
+    @GetMapping
+    public ApiResponse<java.util.List<AssociationDTO>> list(
+            @RequestParam(value = "status", required = false) String status) {
+        return ApiResponse.success(associationService.list(status));
+    }
+
+    @GetMapping("/ledger")
+    public ApiResponse<java.util.List<AssociationHistoryDTO>> ledger(
+            @RequestParam(value = "toolId", required = false) Long toolId,
+            @RequestParam(value = "inheritorId", required = false) Long inheritorId,
+            @RequestParam(value = "projectId", required = false) Long projectId) {
+        return ApiResponse.success(associationService.getLedger(toolId, inheritorId, projectId));
+    }
+
     @GetMapping("/{id}/history")
     public ApiResponse<java.util.List<AssociationHistoryDTO>> getHistory(@PathVariable Long id) {
         java.util.List<AssociationHistoryDTO> history = associationService.getHistory(id);

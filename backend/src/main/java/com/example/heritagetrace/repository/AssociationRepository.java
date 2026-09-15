@@ -12,7 +12,9 @@ import java.util.Optional;
 @Repository
 public interface AssociationRepository extends JpaRepository<Association, Long> {
     List<Association> findByToolId(Long toolId);
-    
+
+    List<Association> findByStatus(String status);
+
     List<Association> findByInheritorId(Long inheritorId);
     
     List<Association> findByProjectId(Long projectId);
