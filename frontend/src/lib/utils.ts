@@ -51,3 +51,19 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/**
+ * 判断工具是否已过保养到期日。
+ * 到期日为 yyyy-MM-dd，按“本地当天”比较：到期日早于今天才算过期，
+ * 到期日当天及之后均不算过期；未设置到期日也不算过期。
+ * 标记基于持久化的到期日在前端实时计算，因此刷新后与日期推进后都保持正确。
+ */
+export function isMaintenanceOverdue(dueDate?: string | null): boolean {
+  if (!dueDate) return false;
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dueDate);
+  if (!matched) return false;
+  const due = new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return due.getTime() < today.getTime();
+}

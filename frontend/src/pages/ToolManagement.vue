@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus, Search, Edit, Trash2, Eye } from 'lucide-vue-next';
-import { ElTable, ElTableColumn, ElPagination, ElButton, ElInput, ElDialog, ElMessage } from 'element-plus';
+import { Plus, Search, Edit, Trash2, Eye, AlertTriangle } from 'lucide-vue-next';
+import { ElTable, ElTableColumn, ElPagination, ElButton, ElInput, ElDialog, ElTag, ElMessage } from 'element-plus';
 import { toolApi } from '@/api';
+import { isMaintenanceOverdue } from '@/lib/utils';
 import type { ToolDTO, PageResponse } from '@/types';
 
 const router = useRouter();
@@ -75,6 +76,11 @@ const handleView = (tool: unknown) => {
   viewDialogVisible.value = true;
 };
 
+// 整行轻底色提示已过保养期；未到期或未设置日期的行不加该类。
+// 以持久化的到期日为基准在前端实时判断，避免列表缓存把过期标记冻结。
+const toolRowClass = ({ row }: { row: ToolDTO }) =>
+  isMaintenanceOverdue(row.maintenanceDueDate) ? 'tool-overdue-row' : '';
+
 onMounted(() => {
   loadTools();
 });
@@ -109,7 +115,7 @@ onMounted(() => {
     </div>
     
     <div class="overflow-x-auto">
-      <ElTable :data="tools" :loading="loading" border class="w-full">
+      <ElTable :data="tools" :loading="loading" border class="w-full" :row-class-name="toolRowClass">
         <ElTableColumn prop="toolNumber" label="工具编号" width="120" />
         <ElTableColumn prop="toolName" label="工具名称" width="150" />
         <ElTableColumn prop="craftType" label="适用工艺" width="120" />
@@ -117,6 +123,20 @@ onMounted(() => {
         <ElTableColumn prop="specification" label="规格" width="150" />
         <ElTableColumn prop="inheritorName" label="传承人" width="120" />
         <ElTableColumn prop="projectName" label="所属项目" width="120" />
+        <ElTableColumn label="保养到期日" width="170">
+          <template #default="{ row }">
+            <div v-if="row.maintenanceDueDate" class="flex items-center gap-2">
+              <span :class="isMaintenanceOverdue(row.maintenanceDueDate) ? 'text-red-600 font-semibold' : ''">
+                {{ row.maintenanceDueDate }}
+              </span>
+              <ElTag v-if="isMaintenanceOverdue(row.maintenanceDueDate)" type="danger" size="small" class="flex items-center gap-1">
+                <AlertTriangle class="w-3 h-3" />
+                已过期
+              </ElTag>
+            </div>
+            <span v-else class="text-gray-400">-</span>
+          </template>
+        </ElTableColumn>
         <ElTableColumn prop="createTime" label="创建时间" width="160" />
         <ElTableColumn label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -179,6 +199,16 @@ onMounted(() => {
             <p>{{ currentTool.projectName || '-' }}</p>
           </div>
           <div>
+            <label class="block text-sm font-medium text-gray-600">保养到期日</label>
+            <div v-if="currentTool.maintenanceDueDate" class="flex items-center gap-2">
+              <p :class="isMaintenanceOverdue(currentTool.maintenanceDueDate) ? 'text-red-600 font-semibold' : ''">
+                {{ currentTool.maintenanceDueDate }}
+              </p>
+              <ElTag v-if="isMaintenanceOverdue(currentTool.maintenanceDueDate)" type="danger" size="small">已过期</ElTag>
+            </div>
+            <p v-else class="text-gray-400">-</p>
+          </div>
+          <div>
             <label class="block text-sm font-medium text-gray-600">创建时间</label>
             <p>{{ currentTool.createTime }}</p>
           </div>
@@ -191,3 +221,17 @@ onMounted(() => {
     </ElDialog>
   </div>
 </template>
+
+<style scoped>
+/* 已过保养到期日的行：浅红底 + 左侧强调条，便于一眼定位 */
+:deep(.el-table tr.tool-overdue-row) {
+  background-color: #fef2f2;
+}
+:deep(.el-table tr.tool-overdue-row > td.el-table__cell) {
+  background-color: #fef2f2;
+}
+:deep(.el-table tr.tool-overdue-row > td:first-child .cell) {
+  border-left: 3px solid #dc2626;
+  padding-left: 8px;
+}
+</style>

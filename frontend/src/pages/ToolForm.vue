@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ArrowLeft, Save } from 'lucide-vue-next';
-import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus';
+import { ElForm, ElFormItem, ElInput, ElButton, ElDatePicker, ElMessage } from 'element-plus';
 import { toolApi } from '@/api';
 import { getApiErrorMessage } from '@/lib/utils';
 import type { ToolCreateRequest, ToolUpdateRequest } from '@/api/types';
@@ -20,6 +20,8 @@ const form = ref({
   material: '',
   specification: '',
   description: '',
+  // 保养到期日统一用 yyyy-MM-dd 字符串与后端交互；空串表示暂不安排
+  maintenanceDueDate: '',
 });
 
 const formRules = {
@@ -40,6 +42,7 @@ const handleSubmit = async () => {
         material: form.value.material,
         specification: form.value.specification,
         description: form.value.description,
+        maintenanceDueDate: form.value.maintenanceDueDate || '',
       };
 
       try {
@@ -60,6 +63,7 @@ const handleSubmit = async () => {
         material: form.value.material,
         specification: form.value.specification,
         description: form.value.description,
+        maintenanceDueDate: form.value.maintenanceDueDate || null,
       };
 
       try {
@@ -99,6 +103,7 @@ onMounted(async () => {
           material: data.material,
           specification: data.specification,
           description: data.description,
+          maintenanceDueDate: data.maintenanceDueDate ?? '',
         };
       }
     } catch (error) {
@@ -149,7 +154,18 @@ onMounted(async () => {
         <ElFormItem label="规格">
           <ElInput v-model="form.specification" placeholder="请输入规格尺寸" />
         </ElFormItem>
-        
+
+        <ElFormItem label="保养到期日">
+          <ElDatePicker
+            v-model="form.maintenanceDueDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
+            placeholder="请选择保养到期日（可留空）"
+            class="w-full"
+          />
+        </ElFormItem>
+
         <ElFormItem label="描述">
           <ElInput v-model="form.description" type="textarea" :rows="4" placeholder="请输入工具描述" />
         </ElFormItem>

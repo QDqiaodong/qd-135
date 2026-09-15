@@ -6,6 +6,8 @@ export interface ToolDTO {
   material: string;
   specification: string;
   description: string;
+  /** 保养到期日 yyyy-MM-dd，可能为空；是否过期由前端按本地当天比较得出 */
+  maintenanceDueDate?: string | null;
   inheritorName?: string;
   projectName?: string;
   createTime: string;

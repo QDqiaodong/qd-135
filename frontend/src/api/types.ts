@@ -5,6 +5,7 @@ export interface ToolCreateRequest {
   material?: string;
   specification?: string;
   description?: string;
+  maintenanceDueDate?: string | null;
 }
 
 export interface ToolUpdateRequest {
@@ -13,6 +14,7 @@ export interface ToolUpdateRequest {
   material?: string;
   specification?: string;
   description?: string;
+  maintenanceDueDate?: string | null;
 }
 
 export interface InheritorCreateRequest {

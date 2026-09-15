@@ -16,6 +16,9 @@ public class ToolCreateRequest {
     private String material;
     
     private String specification;
-    
+
     private String description;
+
+    /** 保养到期日，格式 yyyy-MM-dd；为空表示暂不安排保养 */
+    private String maintenanceDueDate;
 }

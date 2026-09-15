@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -40,7 +41,11 @@ public class Tool {
     
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
-    
+
+    /** 保养到期日：仅精确到日，列表按该日期与当天比较判断是否过期 */
+    @Column(name = "maintenance_due_date")
+    private LocalDate maintenanceDueDate;
+
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
     

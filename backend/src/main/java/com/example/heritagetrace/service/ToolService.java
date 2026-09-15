@@ -20,6 +20,9 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -94,6 +97,7 @@ public class ToolService {
                     .material(request.getMaterial())
                     .specification(request.getSpecification())
                     .description(request.getDescription())
+                    .maintenanceDueDate(parseDueDate(request.getMaintenanceDueDate()))
                     .build();
 
             // 并发下应用层检查可能同时放行，数据库唯一约束是编号唯一的最后防线
@@ -148,7 +152,7 @@ public class ToolService {
         
         Tool tool = toolRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("工具不存在"));
-        
+
         ToolDTO dto = ToolDTO.fromEntity(tool);
         fillAssociationInfo(dto);
         
@@ -203,6 +207,10 @@ public class ToolService {
         if (request.getDescription() != null) {
             tool.setDescription(request.getDescription());
         }
+        // null 表示本次不修改；空串表示清除保养到期日
+        if (request.getMaintenanceDueDate() != null) {
+            tool.setMaintenanceDueDate(parseDueDate(request.getMaintenanceDueDate()));
+        }
         
         Tool updated = toolRepository.save(tool);
         clearCache(id);
@@ -253,6 +261,21 @@ public class ToolService {
         }
     }
     
+    /**
+     * 解析前端传入的保养到期日（yyyy-MM-dd）。
+     * 空白/空串视为未设置日期；格式非法时给出明确的 400 提示，避免把脏数据落库。
+     */
+    private LocalDate parseDueDate(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("保养到期日格式不正确，应为 yyyy-MM-dd");
+        }
+    }
+
     private void clearCache(Long id) {
         redisTemplate.delete(TOOL_CACHE_KEY_PREFIX + id);
         clearListCache();
